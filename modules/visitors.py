@@ -130,3 +130,72 @@ class DeclarationVisitor(c_ast.NodeVisitor):
                 if declaration.name == node.name:
                     node.data["declaration"] = declaration
                     return
+                
+
+class ExpressionTypeResolver(c_ast.NodeVisitor):
+    def __init__(self): 
+        super().__init__()
+
+    def _translate_type(self, type): 
+        if (type == 'string'):
+            return 'char*'
+        else: 
+            return type
+
+    def visit_Constant(self, node): 
+        return self._translate_type(node.type)
+    
+    def visit_IdentifierType(self, node): 
+        return node.names[0]
+
+    def visit_TypeDecl(self, node): 
+        return self.visit(node.type)
+
+    def visit_PtrDecl(self, node): 
+        return self.visit(node.type) + "*"
+
+    def visit_Decl(self, node): 
+        return self.visit(node.type)
+
+
+class ExpressionTypeVisitor(c_ast.NodeVisitor): 
+    """Adds dynamic property 'expression-type' to all expression nodes in tree
+       NB Requires dynamic 'declaration' to work
+       See: https://www.tutorialspoint.com/cprogramming/c_operators.htm
+    """
+
+    def __init__(self, property_name = "expression-type"): 
+        super().__init__()
+        self.property_name = property_name
+
+    def visit_Constant(self, node): 
+        node.data[self.property_name] = ExpressionTypeResolver().visit(node)
+
+    def visit_ID(self, node): 
+        declaration = node.data.get('declaration') 
+        if declaration is None:
+            return 
+        
+        node.data[self.property_name] = ExpressionTypeResolver().visit(declaration)
+    
+    def visit_UnaryOp(self, node): 
+        super().generic_visit(node)
+    
+        if node.op in ['++']:
+            node.data[self.property_name] = node.id.data[self.property_name]
+
+    def visit_BinaryOp(self, node): 
+        super().generic_visit(node)
+    
+        if node.op in ['==', '!=', '<', '<=', '>', '>=', '&&']: 
+            node.data[self.property_name] = 'int'
+        
+        if node.op in ['+', '*']:
+            if node.left.data[self.property_name] == node.right.data[self.property_name]:
+                 node.data[self.property_name] = node.left.data[self.property_name]
+
+    def visit_Assignment(self, node): 
+        super().generic_visit(node)
+        
+        if node.op in ['=', '+=']:
+            node.data[self.property_name] = node.rvalue.data[self.property_name]

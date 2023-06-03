@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser
-from modules.visitors import FindVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor
+from modules.visitors import FindVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -171,6 +171,7 @@ class TestLocationVisitor(unittest.TestCase):
         # xyz will match both decl and id, so skip_substrings=1 is needed to get xyz in "return xyz"
         self._test_location(src, 'xyz', c_ast.ID, skip_substrings = 1)
 
+
 class TestDeclarationVisitor(unittest.TestCase): 
     def test_single_variable(self):
         src = '''
@@ -241,3 +242,86 @@ class TestDeclarationVisitor(unittest.TestCase):
         DeclarationVisitor().visit(root)
 
         self.assertEqual(identifier.data['declaration'], declaration)
+
+
+class TestDeclarationVisitor(unittest.TestCase): 
+    def _test_binaryop_constant(self, type, src): 
+        """ Only handles binary operations consisting of constants
+        """
+        root_src = f'''
+            {type} main() {{
+                return {src};
+            }}
+        '''
+        root = parse(root_src)
+        binary_op = find_node_of_type(root,  c_ast.BinaryOp)
+        
+        ExpressionTypeVisitor().visit(root)
+
+        self.assertEqual(binary_op.data['expression-type'], type)
+
+    def test_binaryop_int_addition(self): 
+        self._test_binaryop_constant('int', '5 + 6')
+    
+    def test_binaryop_int_multiplication(self): 
+        self._test_binaryop_constant('int', '5 * 7')
+    
+    def test_binaryop_int_equals(self): 
+        self._test_binaryop_constant('int', '5 == 7')
+
+    def test_binaryop_string_equals(self): 
+        self._test_binaryop_constant('int', '"yes" == "no"')
+
+    def _test_constant(self, type, src): 
+        root_src = f'''
+            {type} main() {{
+                return {src};
+            }}
+        '''
+        root = parse(root_src)
+        const = find_node_of_type(root,  c_ast.Constant)
+        
+        ExpressionTypeVisitor().visit(root)
+
+        self.assertEqual(const.data['expression-type'], type)
+
+    def test_constant_int(self):
+        self._test_constant('int', '5')
+    
+    def test_constant_string(self):
+        self._test_constant('char*', '"Hello there!"')
+
+    def _test_assignment(self, type, name, expr): 
+        src = f'''
+            {type} main() {{
+                {type} {name};
+                return {expr};
+            }}
+        '''
+        root = parse(src)
+        binary_op = find_node_of_type(root,  c_ast.Assignment)
+        
+        ExpressionTypeVisitor().visit(root)
+
+        self.assertEqual(binary_op.data['expression-type'], type)
+
+    def test_assignment_regular(self):
+        self._test_assignment('int', 'i', 'i = 5');
+
+    def test_assignment_addition(self):
+        self._test_assignment('int', 'i', 'i += 5');
+
+    def test_id(self):
+        src = '''
+            int main() {
+                int i = 5;
+                return i;
+            }
+        '''
+        root = parse(src)
+        identifier = find_id_with_name(root,  'i')
+        
+        DeclarationVisitor().visit(root)
+        ExpressionTypeVisitor().visit(root)
+
+        self.assertEqual(identifier.data['expression-type'], 'int')
