@@ -41,3 +41,66 @@ class ParentVisitor(c_ast.NodeVisitor):
         self.current_parent = oldparent
 
 
+class LocationVisitor(c_ast.NodeVisitor): 
+    """Adds dynamic property 'location' to all nodes in tree
+       location is defined as [start line, start column, end line, end column]
+       NB Only partially implemented
+    """
+    
+    def __init__(self, property_name = "parent"):
+        super().__init__()
+        self.property_name = property_name
+
+    def _visit_width_based_node(self, node, length): 
+        """Calculates width for nodes whoes extend is length dependent"""
+        node.data["location"] = [
+            node.coord.line,
+            node.coord.column,
+            node.coord.line,
+            node.coord.column + length
+        ]
+    
+    def _visit_child_based_node(self, node, first_child = None, last_child = None, padding = 0): 
+        """Calculates width for nodes whoes extend is child dependent"""
+        super().generic_visit(node)
+
+        first_child = first_child if first_child is not None else node.children()[0][1]
+        last_child = last_child if last_child is not None else node.children()[-1][1]
+        
+        if "location" not in first_child.data: 
+            raise Exception(str(type(first_child)) + " is missing location")
+        if "location" not in last_child.data: 
+            raise Exception(str(type(last_child)) + " is missing location")
+
+        first_location =  first_child.data["location"]
+        last_location = last_child.data["location"]
+        node.data["location"] = [
+            first_location[0],
+            first_location[1],
+            last_location[2],
+            last_location[3] + padding
+        ]
+
+    def generic_visit(self, node):
+        return self._visit_child_based_node(node)
+
+    def visit_Constant(self, node): 
+        self._visit_width_based_node(node, len(node.value))
+
+    def visit_BinaryOp(self, node): 
+        self._visit_child_based_node(node, node.left, node.right)
+
+    def visit_Decl(self, node): 
+        self._visit_child_based_node(node, padding = 1 if len(node.children()) > 1 else len(node.name) + 2)
+
+    def visit_FuncCall(self, node): 
+        self._visit_child_based_node(node, padding = 0 if node.args is not None else 2)
+
+    def visit_ID(self, node): 
+        self._visit_width_based_node(node, len(node.name))
+
+    def visit_IdentifierType(self, node): 
+        self._visit_width_based_node(node, len(''.join(node.names)))
+
+    def visit_ExprList(self, node): 
+        self._visit_child_based_node(node, padding = 1)
