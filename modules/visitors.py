@@ -47,9 +47,8 @@ class LocationVisitor(c_ast.NodeVisitor):
        NB Only partially implemented
     """
     
-    def __init__(self, property_name = "parent"):
+    def __init__(self):
         super().__init__()
-        self.property_name = property_name
 
     def _visit_width_based_node(self, node, length): 
         """Calculates width for nodes whoes extend is length dependent"""
@@ -104,3 +103,29 @@ class LocationVisitor(c_ast.NodeVisitor):
 
     def visit_ExprList(self, node): 
         self._visit_child_based_node(node, padding = 1)
+
+
+class DeclarationVisitor(c_ast.NodeVisitor): 
+    """Adds dynamic property 'declaration' to all identifier nodes in tree
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.block_declarations = [] # 2D array [block][variable]
+
+    def visit_Compound(self, node):
+        self.block_declarations.append([])
+        for c in node:
+            self.visit(c)
+        self.block_declarations.pop()
+
+    def visit_Decl(self, node): 
+        if len(self.block_declarations) > 0:
+            self.block_declarations[-1].append(node)
+
+    def visit_ID(self, node): 
+        for block in reversed(self.block_declarations): 
+            for declaration in block: 
+                if declaration.name == node.name:
+                    node.data["declaration"] = declaration
+                    return

@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser
-from modules.visitors import FindVisitor, ParentVisitor, LocationVisitor
+from modules.visitors import FindVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -18,7 +18,7 @@ def find_node_of_type(root, type, skip_matches = 0):
 def find_decl_with_name(root, name, skip_matches = 0):
     return find_node(root, lambda n: isinstance(n, c_ast.Decl) and n.name == name, skip_matches)
 def find_id_with_name(root, name, skip_matches = 0):
-    return find_node(lambda n: isinstance(n, c_ast.ID) and n.name == name, skip_matches)
+    return find_node(root, lambda n: isinstance(n, c_ast.ID) and n.name == name, skip_matches)
 
 
 class TestFindVisitor(unittest.TestCase):
@@ -170,3 +170,74 @@ class TestLocationVisitor(unittest.TestCase):
         '''
         # xyz will match both decl and id, so skip_substrings=1 is needed to get xyz in "return xyz"
         self._test_location(src, 'xyz', c_ast.ID, skip_substrings = 1)
+
+class TestDeclarationVisitor(unittest.TestCase): 
+    def test_single_variable(self):
+        src = '''
+            int main() {
+                int i = 5;
+                return i;
+            }
+        '''
+        root = parse(src)
+        declaration = find_decl_with_name(root,  'i')
+        identifier = find_id_with_name(root, 'i')
+        
+        DeclarationVisitor().visit(root)
+
+        self.assertEqual(identifier.data['declaration'], declaration)
+
+    def test_multiple_variables(self):
+        src = '''
+            int main() {
+                int i = 5;
+                int j = 6;
+                return i + j;
+            }
+        '''
+        root = parse(src)
+        declaration1 = find_decl_with_name(root,  'i')
+        declaration2 = find_decl_with_name(root,  'j')
+        identifier1 = find_id_with_name(root,  'i')
+        identifier2 = find_id_with_name(root,  'j')
+        
+        DeclarationVisitor().visit(root)
+
+        self.assertEqual(identifier1.data['declaration'], declaration1)
+        self.assertEqual(identifier2.data['declaration'], declaration2)
+
+    def test_shadowed_variables(self):
+        src = '''
+            int main() {
+                int i = 5;
+                {
+                    int i = 7;
+                    return i;
+                }
+            }
+        '''
+        root = parse(src)
+        declaration = find_decl_with_name(root,  'i', skip_matches=1)
+        identifier = find_id_with_name(root,  'i')
+        
+        DeclarationVisitor().visit(root)
+
+        self.assertEqual(identifier.data['declaration'], declaration)
+
+    def test_previously_shadowed_variables(self):
+        src = '''
+            int main() {
+                int i = 5;
+                {
+                    int i = 7;
+                }
+                return i;
+            }
+        '''
+        root = parse(src)
+        declaration = find_decl_with_name(root,  'i')
+        identifier = find_id_with_name(root,  'i')
+        
+        DeclarationVisitor().visit(root)
+
+        self.assertEqual(identifier.data['declaration'], declaration)
