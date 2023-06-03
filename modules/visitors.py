@@ -107,6 +107,7 @@ class LocationVisitor(c_ast.NodeVisitor):
 
 class DeclarationVisitor(c_ast.NodeVisitor): 
     """Adds dynamic property 'declaration' to all identifier nodes in tree
+       NB Only supports local variables
     """
     
     def __init__(self):
