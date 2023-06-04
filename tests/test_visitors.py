@@ -365,21 +365,31 @@ class TestFlattenVisitor(unittest.TestCase):
             ['int temp0'])
 
     def test_flatten_binaryop_with_left_constant(self): 
-        c1 = c_ast.Constant(type='int', value='1')
-        c2 = c_ast.ID(type='int', value='5')
-        b1 = c_ast.BinaryOp(op='+', left=c1, right=c2)
+        c1 = c_ast.Constant(type='int', value='2')
+        i1 = c_ast.ID(name = 'j', data = {'expression-type': 'int'})
+        b1 = c_ast.BinaryOp(op='*', left=c1, right=i1, data = {'expression-type': 'int'})
 
         self._test_flatten_node(
             b1, 
-            'temp0 = i, temp1 = 5, temp2 = temp0 + temp1', 
-            ['int temp0', 'int temp1', 'int temp2'])
+            'temp0 = j, temp1 = 2 * temp0, temp1', 
+            ['int temp0', 'int temp1'])
 
-    def test_flatten_binaryop_with_variables(self): 
-        c1 = c_ast.ID(type='int', value='i')
-        c2 = c_ast.ID(type='int', value='5')
-        b1 = c_ast.BinaryOp(op='+', left=c1, right=c2)
+    def test_flatten_binaryop_with_right_constant(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        c1 = c_ast.Constant(type='int', value='67')
+        b1 = c_ast.BinaryOp(op='-', left=i1, right=c1, data = {'expression-type': 'int'})
 
         self._test_flatten_node(
             b1, 
-            'temp0 = i, temp1 = 5, temp2 = temp0 + temp1', 
+            'temp0 = i, temp1 = temp0 - 67, temp1', 
+            ['int temp0', 'int temp1'])
+
+    def test_flatten_binaryop_without_constants(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        i2 = c_ast.ID(name = 'j', data = {'expression-type': 'int'})
+        b1 = c_ast.BinaryOp(op='%', left=i1, right=i2, data = {'expression-type': 'int'})
+
+        self._test_flatten_node(
+            b1, 
+            'temp0 = i, temp1 = j, temp2 = temp0 % temp1, temp2', 
             ['int temp0', 'int temp1', 'int temp2'])

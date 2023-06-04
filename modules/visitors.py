@@ -222,37 +222,30 @@ class FlattenVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_BinaryOp(self, node):
+        buffer = []
+        left_expr = node.left
+        left_variables = []
+        right_expr = node.right
+        right_variables = []
+
         # Visit operator arguments (depth first)
+        if not isinstance(node.left, c_ast.Constant): 
+            self.visit(node.left)
+            buffer.extend(node.left.data['flattened-expression'].exprs[:-1])
+            left_expr = node.left.data['flattened-expression'].exprs[-1]
+            left_variables = node.left.data['flattened-variables']
+        if not isinstance(node.right, c_ast.Constant): 
+            self.visit(node.right)
+            buffer.extend(node.right.data['flattened-expression'].exprs[:-1])
+            right_expr = node.right.data['flattened-expression'].exprs[-1]
+            right_variables = node.right.data['flattened-variables'] 
 
         # Creates expr(temp_n = ...)
         name = 'temp' + str(self.counter)
         self.counter += 1
 
-        left_expr = node.left
-        right_expr = node.right
-
-        left_variables = []
-        right_variables = []
-
-        #left = None
-        #right = None
-        buffer = []
-        #if isinstance(left, c_ast.ExprList):
-        #    buffer.extend(left.exprs[:-1])
-        #    left = left.exprs[-1]
-        #if (isinstance(right, c_ast.ExprList)):
-        #    buffer.extend(right.exprs[:-1])
-        #    right = right.exprs[-1]
-
         buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr)))
         buffer.append(c_ast.ID(name))
-
-        #buffer.extend([])
-
-        #buffer.append(self.createExpression(name, c_ast.BinaryOp(node.op, left, right)))
-
-        #self.addDeclaration(name)
-        
 
         node.data['flattened-expression'] = c_ast.ExprList(buffer)
         node.data['flattened-variables'] = left_variables + right_variables + [self.create_declaration(name, node)]
