@@ -206,20 +206,35 @@ class FlattenVisitor(c_ast.NodeVisitor):
         self.counter = counter
 
     def visit_Decl(self, node):
+        init = None
+        variables = None
+
         if node.init == None: 
-            buffer = []
             name = 'temp' + str(self.counter)
             self.counter += 1
 
-            buffer.append(self.createExpression(name, None))
-            buffer.append(c_ast.ID(name))
-
-            self.addDeclaration(name)
-            node.init = c_ast.ExprList(buffer)
+            init = c_ast.ExprList([c_ast.ID(name), c_ast.ID(name)])
+            variables = [self.create_declaration(name, node)]
         else: 
-            node.init = self.visit(node.init)
+            self.visit(node.init)
+
+            init = node.init.data['flattened-expression']
+            variables = node.init.data['flattened-variables']
         
-        return node
+        node.data['flattened-expression'] = c_ast.Decl(
+                name=node.name,
+                quals=node.quals,
+                align=node.align,
+                storage=node.storage,
+                funcspec=node.funcspec,
+                type=node.type, 
+                init = init,
+                bitsize=node.bitsize,
+                coord=node.coord,
+                data=node.data
+            )
+        node.data['flattened-variables'] = variables
+
 
     def visit_BinaryOp(self, node):
         expr_buffer = []

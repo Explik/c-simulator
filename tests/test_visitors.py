@@ -393,3 +393,35 @@ class TestFlattenVisitor(unittest.TestCase):
             b1, 
             'temp0 = i, temp1 = j, temp2 = temp0 % temp1, temp2', 
             ['int temp0', 'int temp1', 'int temp2'])
+
+    def test_flatten_decl_without_init(self): 
+        src = '''
+            int main() {
+                int i;
+            }
+        '''
+        root = parse(src)
+        node = find_decl_with_name(root, 'i')
+        node.data['expression-type'] = 'int'
+
+        self._test_flatten_node(
+            node, 
+            'int i = (temp0, temp0)', 
+            ['int temp0'])
+        
+    def test_flatten_decl_with_init(self): 
+        src = '''
+            int main() {
+                int i = 5;
+            }
+        '''
+        root = parse(src)
+        c1 = find_node_of_type(root, c_ast.Constant)
+        d1 = find_decl_with_name(root, 'i')
+        c1.data['expression-type'] = 'int'
+        d1.data['expression-type'] = 'int'
+
+        self._test_flatten_node(
+            d1, 
+            'int i = (temp0 = 5, temp0)', 
+            ['int temp0'])
