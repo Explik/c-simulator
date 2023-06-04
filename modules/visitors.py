@@ -222,33 +222,33 @@ class FlattenVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_BinaryOp(self, node):
-        buffer = []
+        expr_buffer = []
+        variable_buffer = []
         left_expr = node.left
-        left_variables = []
         right_expr = node.right
-        right_variables = []
 
-        # Visit operator arguments (depth first)
+        # Visit operator arguments (depth first approach)
         if not isinstance(node.left, c_ast.Constant): 
             self.visit(node.left)
-            buffer.extend(node.left.data['flattened-expression'].exprs[:-1])
             left_expr = node.left.data['flattened-expression'].exprs[-1]
-            left_variables = node.left.data['flattened-variables']
+            expr_buffer.extend(node.left.data['flattened-expression'].exprs[:-1])
+            variable_buffer.extend(node.left.data['flattened-variables'])
         if not isinstance(node.right, c_ast.Constant): 
             self.visit(node.right)
-            buffer.extend(node.right.data['flattened-expression'].exprs[:-1])
             right_expr = node.right.data['flattened-expression'].exprs[-1]
-            right_variables = node.right.data['flattened-variables'] 
+            expr_buffer.extend(node.right.data['flattened-expression'].exprs[:-1])
+            variable_buffer.extend(node.right.data['flattened-variables'])
 
-        # Creates expr(temp_n = ...)
+        # Visit operator itself
         name = 'temp' + str(self.counter)
         self.counter += 1
 
-        buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr)))
-        buffer.append(c_ast.ID(name))
+        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr)))
+        expr_buffer.append(c_ast.ID(name))
+        variable_buffer.append(self.create_declaration(name, node))
 
-        node.data['flattened-expression'] = c_ast.ExprList(buffer)
-        node.data['flattened-variables'] = left_variables + right_variables + [self.create_declaration(name, node)]
+        node.data['flattened-expression'] = c_ast.ExprList(expr_buffer)
+        node.data['flattened-variables'] = variable_buffer
 
     def visit_ID(self, node):
         name = 'temp' + str(self.counter)
