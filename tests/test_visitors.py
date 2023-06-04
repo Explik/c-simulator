@@ -425,3 +425,73 @@ class TestFlattenVisitor(unittest.TestCase):
             d1, 
             'int i = (temp0 = 5, temp0)', 
             ['int temp0'])
+    
+    def test_flatten_funccall_void(self): 
+        f1 = c_ast.FuncCall(c_ast.ID('f'), None, data={'expression-type': 'void'})
+
+        self._test_flatten_node(
+            f1, 
+            'f()', 
+            [])
+
+    def test_flatten_funccall_without_parameters(self): 
+        f1 = c_ast.FuncCall(c_ast.ID('f'), None, data={'expression-type': 'float'})
+
+        self._test_flatten_node(
+            f1, 
+            'temp0 = f(), temp0', 
+            ['float temp0'])
+    
+    def test_flatten_funccall_with_constant_arguments(self): 
+        c1 = c_ast.Constant(type='int', value='1', data = {'expression-type': 'int'})
+        c2 = c_ast.Constant(type='int', value='2', data = {'expression-type': 'int'})
+        f1 = c_ast.FuncCall(
+            c_ast.ID('f'), 
+            c_ast.ExprList([c1, c2]),
+            data={'expression-type': 'double'})
+
+        self._test_flatten_node(
+            f1, 
+            'temp0 = f(1, 2), temp0', 
+            ['double temp0'])
+    
+    def test_flatten_funccall_with_non_constant_argument(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        f1 = c_ast.FuncCall(
+            c_ast.ID('f'), 
+            c_ast.ExprList([i1]),
+            data={'expression-type': 'short'})
+
+        self._test_flatten_node(
+            f1, 
+            'temp0 = i, temp1 = f(temp0), temp1', 
+            ['int temp0', 'short temp1'])
+    
+    def test_flatten_funccall_with_non_constant_arguments(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        i2 = c_ast.ID(name = 'j', data = {'expression-type': 'int'})
+        f1 = c_ast.FuncCall(
+            c_ast.ID('f'), 
+            c_ast.ExprList([i1, i2]),
+            data={'expression-type': 'short'})
+
+        self._test_flatten_node(
+            f1, 
+            'temp0 = i, temp1 = j, temp2 = f(temp0, temp1), temp2', 
+            ['int temp0', 'int temp1', 'short temp2'])
+    
+    def test_flatten_funccall_with_mixed_arguments(self): 
+        c1 = c_ast.Constant(type='int', value='45', data = {'expression-type': 'int'})
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        f1 = c_ast.FuncCall(
+            c_ast.ID('f'), 
+            c_ast.ExprList([c1, i1]),
+            data={'expression-type': 'short'})
+
+        self._test_flatten_node(
+            f1, 
+            'temp0 = i, temp1 = f(45, temp0), temp1', 
+            ['int temp0', 'short temp1'])
+    
+    
+        

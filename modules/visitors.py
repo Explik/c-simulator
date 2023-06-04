@@ -235,7 +235,6 @@ class FlattenVisitor(c_ast.NodeVisitor):
             )
         node.data['flattened-variables'] = variables
 
-
     def visit_BinaryOp(self, node):
         expr_buffer = []
         variable_buffer = []
@@ -278,6 +277,36 @@ class FlattenVisitor(c_ast.NodeVisitor):
 
         node.data['flattened-expression'] = self.create_expression(name, node)
         node.data['flattened-variables'] = [self.create_declaration(name, node)]
+
+    def visit_FuncCall(self, node): 
+        args_buffer = []
+        expr_buffer = []
+        variable_buffer = []
+
+        # Visit function arguments
+        if node.args is not None: 
+            for arg in node.args: 
+                if isinstance(arg, c_ast.Constant): 
+                    args_buffer.append(arg)
+                else: 
+                    self.visit(arg)
+                    args_buffer.append(arg.data['flattened-expression'].exprs[-1])
+                    expr_buffer.extend(arg.data['flattened-expression'].exprs[:-1])
+                    variable_buffer.extend(arg.data['flattened-variables'])
+
+        # Visit function call
+        if node.data['expression-type'] != 'void':
+            name = 'temp' + str(self.counter)
+            self.counter += 1
+
+            expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.FuncCall(node.name, c_ast.ExprList(args_buffer))))
+            expr_buffer.append(c_ast.ID(name))
+            variable_buffer.append(self.create_declaration(name, node))
+        else: 
+            expr_buffer.append(node)
+
+        node.data['flattened-expression'] = c_ast.ExprList(expr_buffer)
+        node.data['flattened-variables'] = variable_buffer
 
     def create_expression(self, name, expr):
         temp_value = c_ast.ID(name) if expr == None else c_ast.Assignment('=', c_ast.ID(name), expr)
