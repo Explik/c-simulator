@@ -234,6 +234,29 @@ class FlattenVisitor(c_ast.NodeVisitor):
                 data=node.data
             )
         node.data['flattened-variables'] = variables
+    
+    def visit_Assignment(self, node):
+        expr_buffer = []
+        variable_buffer = []
+        rvalue_expr = node.rvalue
+
+        # Visit operator arguments (depth first approach)
+        if not isinstance(node.rvalue, c_ast.Constant): 
+            self.visit(node.rvalue)
+            rvalue_expr = node.rvalue.data['flattened-expression'].exprs[-1]
+            expr_buffer.extend(node.rvalue.data['flattened-expression'].exprs[:-1])
+            variable_buffer.extend(node.rvalue.data['flattened-variables'])
+
+        # Visit operator itself
+        name = 'temp' + str(self.counter)
+        self.counter += 1
+
+        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.Assignment(node.op, node.lvalue, rvalue_expr)))
+        expr_buffer.append(c_ast.ID(name))
+        variable_buffer.append(self.create_declaration(name, node))
+
+        node.data['flattened-expression'] = c_ast.ExprList(expr_buffer)
+        node.data['flattened-variables'] = variable_buffer
 
     def visit_BinaryOp(self, node):
         expr_buffer = []

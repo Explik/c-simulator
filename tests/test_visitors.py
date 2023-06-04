@@ -493,5 +493,22 @@ class TestFlattenVisitor(unittest.TestCase):
             'temp0 = i, temp1 = f(45, temp0), temp1', 
             ['int temp0', 'short temp1'])
     
-    
+    def test_flatten_assignment_with_constant(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        c1 = c_ast.Constant(type='short', value='2', data={'expression-type': 'short'})
+        b1 = c_ast.Assignment('=', i1, c1, data = {'expression-type': 'int'})
+
+        self._test_flatten_node(
+            b1,
+            'temp0 = (i = 2), temp0', 
+            ['int temp0'])
         
+    def test_flatten_assignment_with_non_constant(self): 
+        i1 = c_ast.ID(name = 'i', data = {'expression-type': 'int'})
+        i2 = c_ast.ID(name = 'j', data = {'expression-type': 'short'})
+        b1 = c_ast.Assignment('=', i1, i2, data = {'expression-type': 'int'})
+
+        self._test_flatten_node(
+            b1,
+            'temp0 = j, temp1 = (i = temp0), temp1', 
+            ['short temp0', 'int temp1'])
