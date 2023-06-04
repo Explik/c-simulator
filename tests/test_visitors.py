@@ -1,7 +1,7 @@
 import unittest
 import re
-from pycparser import c_ast, c_parser
-from modules.visitors import FindVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from pycparser import c_ast, c_parser, c_generator
+from modules.visitors import FindVisitor, FlattenVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -244,7 +244,7 @@ class TestDeclarationVisitor(unittest.TestCase):
         self.assertEqual(identifier.data['declaration'], declaration)
 
 
-class TestDeclarationVisitor(unittest.TestCase): 
+class TestExpressionTypeVisitor(unittest.TestCase): 
     def _test_binaryop_constant(self, type, src): 
         """ Only handles binary operations consisting of constants
         """
@@ -325,3 +325,61 @@ class TestDeclarationVisitor(unittest.TestCase):
         ExpressionTypeVisitor().visit(root)
 
         self.assertEqual(identifier.data['expression-type'], 'int')
+
+
+class TestFlattenVisitor(unittest.TestCase):
+    def _test_flatten_node(self, root, src_expr, src_variables):
+        fv = FlattenVisitor()
+        fv.visit(root)
+
+        actual_src_expr = c_generator.CGenerator().visit(root.data['flattened-expression'])
+        actual_src_variables = [c_generator.CGenerator().visit(x) for x in root.data['flattened-variables']]
+
+        self.assertEqual(actual_src_expr, src_expr)
+        self.assertListEqual(actual_src_variables, src_variables)
+
+    def test_flatten_constant(self):  
+        c1 = c_ast.Constant(type='int', value='5', data={'expression-type': 'int'})
+
+        self._test_flatten_node(
+            c1, 
+            'temp0 = 5, temp0', 
+            ['int temp0'])
+        
+    def test_flatten_id(self):  
+        i1 = c_ast.ID(name='i', data = {'expression-type': 'char'})
+
+        self._test_flatten_node(
+            i1, 
+            'temp0 = i, temp0', 
+            ['char temp0'])
+        
+    def test_flatten_binaryop_with_constants(self): 
+        c1 = c_ast.Constant(type='int', value='1', data = {'expression-type': 'int'})
+        c2 = c_ast.Constant(type='int', value='5', data = {'expression-type': 'int'})
+        b1 = c_ast.BinaryOp(op='+', left=c1, right=c2, data = {'expression-type': 'int'})
+
+        self._test_flatten_node(
+            b1, 
+            'temp0 = 1 + 5, temp0', 
+            ['int temp0'])
+
+    def test_flatten_binaryop_with_left_constant(self): 
+        c1 = c_ast.Constant(type='int', value='1')
+        c2 = c_ast.ID(type='int', value='5')
+        b1 = c_ast.BinaryOp(op='+', left=c1, right=c2)
+
+        self._test_flatten_node(
+            b1, 
+            'temp0 = i, temp1 = 5, temp2 = temp0 + temp1', 
+            ['int temp0', 'int temp1', 'int temp2'])
+
+    def test_flatten_binaryop_with_variables(self): 
+        c1 = c_ast.ID(type='int', value='i')
+        c2 = c_ast.ID(type='int', value='5')
+        b1 = c_ast.BinaryOp(op='+', left=c1, right=c2)
+
+        self._test_flatten_node(
+            b1, 
+            'temp0 = i, temp1 = 5, temp2 = temp0 + temp1', 
+            ['int temp0', 'int temp1', 'int temp2'])

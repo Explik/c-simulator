@@ -199,3 +199,92 @@ class ExpressionTypeVisitor(c_ast.NodeVisitor):
         
         if node.op in ['=', '+=']:
             node.data[self.property_name] = node.rvalue.data[self.property_name]
+
+# Used by FlattenVisitor
+class FlattenVisitor(c_ast.NodeVisitor):
+    def __init__(self, counter = 0):
+        self.counter = counter
+
+    def visit_Decl(self, node):
+        if node.init == None: 
+            buffer = []
+            name = 'temp' + str(self.counter)
+            self.counter += 1
+
+            buffer.append(self.createExpression(name, None))
+            buffer.append(c_ast.ID(name))
+
+            self.addDeclaration(name)
+            node.init = c_ast.ExprList(buffer)
+        else: 
+            node.init = self.visit(node.init)
+        
+        return node
+
+    def visit_BinaryOp(self, node):
+        # Visit operator arguments (depth first)
+
+        # Creates expr(temp_n = ...)
+        name = 'temp' + str(self.counter)
+        self.counter += 1
+
+        left_expr = node.left
+        right_expr = node.right
+
+        left_variables = []
+        right_variables = []
+
+        #left = None
+        #right = None
+        buffer = []
+        #if isinstance(left, c_ast.ExprList):
+        #    buffer.extend(left.exprs[:-1])
+        #    left = left.exprs[-1]
+        #if (isinstance(right, c_ast.ExprList)):
+        #    buffer.extend(right.exprs[:-1])
+        #    right = right.exprs[-1]
+
+        buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr)))
+        buffer.append(c_ast.ID(name))
+
+        #buffer.extend([])
+
+        #buffer.append(self.createExpression(name, c_ast.BinaryOp(node.op, left, right)))
+
+        #self.addDeclaration(name)
+        
+
+        node.data['flattened-expression'] = c_ast.ExprList(buffer)
+        node.data['flattened-variables'] = left_variables + right_variables + [self.create_declaration(name, node)]
+
+    def visit_ID(self, node):
+        name = 'temp' + str(self.counter)
+        self.counter += 1
+
+        node.data['flattened-expression'] = self.create_expression(name, node)
+        node.data['flattened-variables'] = [self.create_declaration(name, node)]
+    
+    def visit_Constant(self, node): 
+        name = 'temp' + str(self.counter)
+        self.counter += 1
+
+        node.data['flattened-expression'] = self.create_expression(name, node)
+        node.data['flattened-variables'] = [self.create_declaration(name, node)]
+
+    def create_expression(self, name, expr):
+        temp_value = c_ast.ID(name) if expr == None else c_ast.Assignment('=', c_ast.ID(name), expr)
+
+        return c_ast.ExprList([temp_value, c_ast.ID(name)])
+    
+    def create_declaration(self, name, node): 
+        # Does not support pointer types 
+        type_identifier = c_ast.IdentifierType([node.data['expression-type']])
+        type_decl = c_ast.TypeDecl(name, [], None, type = type_identifier)
+        
+        return c_ast.Decl(name, [], [], [], [], type_decl, None, None)
+        
+    def addDeclaration(self, name):
+        typeName = c_ast.IdentifierType(['int'])
+        type = c_ast.TypeDecl(name, [], None, type = typeName)
+        declaration = c_ast.Decl(name, [], [], [], [], type, None, None)
+        self.variables.append(declaration)
