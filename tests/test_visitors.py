@@ -328,12 +328,16 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 
 
 class TestFlattenVisitor(unittest.TestCase):
-    def _test_flatten_node(self, root, src_expr, src_variables):
+    def _test_flatten_node(self, node, src_expr, src_variables):
+        root = parse('void func() { }')
+        compound = find_node_of_type(root, c_ast.Compound)
+        compound.block_items = [node]
+
         fv = FlattenVisitor()
         fv.visit(root)
 
-        actual_src_expr = c_generator.CGenerator().visit(root.data['flattened-expression'])
-        actual_src_variables = [c_generator.CGenerator().visit(x) for x in root.data['flattened-variables']]
+        actual_src_expr = c_generator.CGenerator().visit(compound.block_items[-1])
+        actual_src_variables = [c_generator.CGenerator().visit(x) for x in compound.block_items[:-1]]
 
         self.assertEqual(actual_src_expr, src_expr)
         self.assertListEqual(actual_src_variables, src_variables)
