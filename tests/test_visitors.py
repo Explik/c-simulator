@@ -127,7 +127,7 @@ class TestLocationVisitor(unittest.TestCase):
                 int i;
             }
         '''
-        self._test_location(src, 'int i;', c_ast.Decl)
+        self._test_location(src, 'int i;', c_ast.Decl, skip_nodes=1)
 
     def test_decl_with_init(self):
         src = '''
@@ -135,7 +135,7 @@ class TestLocationVisitor(unittest.TestCase):
                 int i = 5;
             }
         '''
-        self._test_location(src, 'int i = 5;', c_ast.Decl)
+        self._test_location(src, 'int i = 5;', c_ast.Decl, skip_nodes=1)
 
     def test_funccall_without_parameters(self):
         src = '''
