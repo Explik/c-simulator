@@ -350,3 +350,49 @@ class FlattenVisitor(c_ast.NodeVisitor):
         decl = c_ast.Decl(name, [], [], [], [], type_decl, None, None)
 
         self.declarations.append(decl)
+
+class INotifyInfoCreator(): 
+    def create(self, dict): 
+        pass
+
+class ConstantNotifyInfoCreator(INotifyInfoCreator):
+    def __init__(self):
+        super().__init__()
+        self.counter = 0
+
+    def create(self, dict): 
+        buf = "CONSTANT" + str(self.counter)
+        self.counter += 1
+        return buf
+
+class NotifyCreator(INotifyInfoCreator):
+    def __init__(self):
+        super().__init__()
+    
+    def create(self, dict):
+        pass
+
+class NotifyVisitor(c_ast.NodeVisitor):
+    def __init__(self, creator: INotifyInfoCreator):
+        super().__init__()
+        self.creator = creator
+
+    def visit_ExprList(self, node): 
+        if node.data['flattened'] != None:
+            buffer = []
+
+            for expr in node.exprs[:-1]: 
+                buffer.append(expr)
+                buffer.append(self._create_notify_node(expr))
+            buffer.append(node.exprs[-1])
+            node.exprs = buffer
+
+    def _create_notify_node(self, node):
+        info = self.creator.create(node.data)
+        variable = node.lvalue if type(node) == c_ast.Assignment else node
+        return c_ast.FuncCall(
+            name=c_ast.ID('notify'),
+            args=c_ast.ExprList(exprs=[
+                c_ast.Constant(type='string', value=f'"{info}"'),
+                c_ast.UnaryOp('&', variable)
+            ]))  
