@@ -566,7 +566,8 @@ class TestNotifyVisitor(unittest.TestCase):
 
         root = parse(src);
         exprlist = find_node_of_type(root, c_ast.ExprList);
-        exprlist.data = {'flattened': True }
+        for expr in exprlist.exprs[:-1]: 
+            expr.data = {'flattened': True }
 
         creator = ConstantNotifyInfoCreator()
         visitor = NotifyVisitor(creator)

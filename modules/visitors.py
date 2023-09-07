@@ -404,14 +404,14 @@ class NotifyVisitor(c_ast.NodeVisitor):
         self.creator = creator
 
     def visit_ExprList(self, node): 
-        if len(node.data) > 0:
-            buffer = []
+        buffer = []
 
-            for expr in node.exprs[:-1]: 
-                buffer.append(expr)
+        for expr in node.exprs[:-1]: 
+            buffer.append(expr)
+            if len(expr.data) > 0:
                 buffer.append(self._create_notify_node(expr))
-            buffer.append(node.exprs[-1])
-            node.exprs = buffer
+        buffer.append(node.exprs[-1])
+        node.exprs = buffer
 
     def _create_notify_node(self, node):
         info = self.creator.create(node.data)
