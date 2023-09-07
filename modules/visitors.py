@@ -124,6 +124,9 @@ class DeclarationVisitor(c_ast.NodeVisitor):
         if len(self.block_declarations) > 0:
             self.block_declarations[-1].append(node)
 
+            if node.init is not None: 
+                self.visit(node.init)
+
     def visit_ID(self, node): 
         for block in reversed(self.block_declarations): 
             for declaration in block: 
@@ -217,6 +220,7 @@ class FlattenVisitor(c_ast.NodeVisitor):
             buffer.append(self.visit(item))
         node.block_items = buffer
 
+    # Statements
     def visit_Decl(self, node):
         init = None
 
@@ -242,6 +246,16 @@ class FlattenVisitor(c_ast.NodeVisitor):
             data=node.data
         )
 
+    def visit_Return(self, node): 
+        expr = self.visit(node.expr)
+
+        return c_ast.Return(
+            expr=expr,
+            coord=node.coord,
+            data=node.data
+        )
+
+    # Expressions 
     def visit_Assignment(self, node):
         expr_buffer = []
         rvalue_expr = node.rvalue
@@ -257,7 +271,7 @@ class FlattenVisitor(c_ast.NodeVisitor):
         self.counter += 1
         self.add_declaration(name, node)
 
-        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.Assignment(node.op, node.lvalue, rvalue_expr)))
+        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.Assignment(node.op, node.lvalue, rvalue_expr), data=node.data))
         expr_buffer.append(c_ast.ID(name))
         
         return  c_ast.ExprList(expr_buffer)
@@ -282,7 +296,7 @@ class FlattenVisitor(c_ast.NodeVisitor):
         self.counter += 1
         self.add_declaration(name, node)
 
-        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr)))
+        expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.BinaryOp(node.op, left_expr, right_expr), data=node.data))
         expr_buffer.append(c_ast.ID(name))
         expr =  c_ast.ExprList(expr_buffer)
         #expr.data['original-expression'] = node
@@ -324,7 +338,7 @@ class FlattenVisitor(c_ast.NodeVisitor):
             self.counter += 1
             self.add_declaration(name, node)
 
-            expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.FuncCall(node.name, c_ast.ExprList(args_buffer))))
+            expr_buffer.append(c_ast.Assignment('=', c_ast.ID(name), c_ast.FuncCall(node.name, c_ast.ExprList(args_buffer), data=node.data)))
             expr_buffer.append(c_ast.ID(name))
         else: 
             expr_buffer.append(node)
@@ -333,6 +347,7 @@ class FlattenVisitor(c_ast.NodeVisitor):
 
     def create_expression(self, name, expr):
         temp_value = c_ast.ID(name) if expr == None else c_ast.Assignment('=', c_ast.ID(name), expr)
+        temp_value.data = expr.data;
 
         return c_ast.ExprList([temp_value, c_ast.ID(name)])
     
@@ -389,7 +404,7 @@ class NotifyVisitor(c_ast.NodeVisitor):
         self.creator = creator
 
     def visit_ExprList(self, node): 
-        if node.data['flattened'] != None:
+        if len(node.data) > 0:
             buffer = []
 
             for expr in node.exprs[:-1]: 

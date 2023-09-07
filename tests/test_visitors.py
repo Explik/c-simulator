@@ -517,6 +517,15 @@ class TestFlattenVisitor(unittest.TestCase):
             'temp0 = j, temp1 = (i = temp0), temp1', 
             ['short temp0', 'int temp1'])
 
+    def test_flatten_return_with_constant(self):
+        c1 = c_ast.Constant(type='int', value = '5', data={ 'expression-type': 'int' })
+        r1 = c_ast.Return(c1)
+
+        self._test_flatten_node(
+            r1,
+            'return temp0 = 5, temp0;',
+            ['int temp0'])
+
 
 class TestNotifyCreator(unittest.TestCase): 
     def test_location(self): 
