@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from modules.visitors import ConstantNotifyInfoCreator, FindVisitor, FlattenVisitor, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from modules.visitors import ConstantNotifyInfoCreator, FindVisitor, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -516,7 +516,42 @@ class TestFlattenVisitor(unittest.TestCase):
             b1,
             'temp0 = j, temp1 = (i = temp0), temp1', 
             ['short temp0', 'int temp1'])
+
+
+class TestNotifyCreator(unittest.TestCase): 
+    def test_location(self): 
+        # Tests serialization of LocationVisitor data
+        input = { "location": [0, 1, 2, 3] }
         
+        actual = NotifyCreator().create(input)
+        expected = "l=[0,1,2,3]"
+
+        self.assertEqual(actual, expected)
+
+    def test_expression_type(self): 
+        # Tests serilization of ExpressionTypeVisitor data 
+        input = { "expression-type": "string*" }
+
+        actual = NotifyCreator().create(input)
+        expected = "t=string*"
+
+        self.assertEqual(actual, expected)
+
+    def test_combination(self): 
+        # NotifyCreator does not guarantee order
+        input = { 
+            "expression-type": "string*",
+            "location": [0, 1, 2, 3]
+        }
+
+        actual = NotifyCreator().create(input)
+        expected1 = "t=string*;l=[0,1,2,3]"
+        expected2 = "l=[0,1,2,3];t=string*"
+
+        self.assertTrue(actual == expected1 or actual == expected2);
+
+    
+
 class TestNotifyVisitor(unittest.TestCase):
     def _test_notify_node(self, src, expected):
 
@@ -573,23 +608,4 @@ int main()
   int temp1;
   return temp0 = j, notify("CONSTANT0", &temp0), temp1 = 2 * temp0, notify("CONSTANT1", &temp1), temp1;
 }'''
-        self._test_notify_node(src, expected)
-
-
-
-    def test_notify_binary2(self): 
-        # NotifyVisitor
-        # temp0 = j, temp1 = 2 * temp0, temp1
-        # temp0 = j, notify("CONSTANT0", &temp0), temp1 = 2 * temp0, notify("CONSTANT1", &temp1), temp1
-        
-        # NotifyGenerator
-        # temp0 = j -> notify("", &temp0)
-
-        c1 = c_ast.Constant(type='int', value='2')
-        i1 = c_ast.ID(name = 'j', data = {'expression-type': 'int'})
-        b1 = c_ast.BinaryOp(op='*', left=c1, right=i1, data = {'expression-type': 'int'})
-
-        self._test_flatten_node(
-            b1, 
-            'temp0 = j, temp1 = 2 * temp0, temp1', 
-            ['int temp0', 'int temp1'])
+        self._test_notify_node(src, expected) 

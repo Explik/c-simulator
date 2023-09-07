@@ -370,7 +370,18 @@ class NotifyCreator(INotifyInfoCreator):
         super().__init__()
     
     def create(self, dict):
-        pass
+        buffer = []
+
+        if "expression-type" in dict:
+            temp_t = "t=%s" % dict["expression-type"]
+            buffer.append(temp_t)
+
+        if "location" in dict: 
+            arr = dict["location"]
+            temp_l = "l=[%s,%s,%s,%s]" % (arr[0], arr[1], arr[2], arr[3])
+            buffer.append(temp_l)
+        
+        return ";".join(buffer)
 
 class NotifyVisitor(c_ast.NodeVisitor):
     def __init__(self, creator: INotifyInfoCreator):
