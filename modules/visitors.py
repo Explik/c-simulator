@@ -403,6 +403,58 @@ class NotifyVisitor(c_ast.NodeVisitor):
         super().__init__()
         self.creator = creator
 
+    def visit_FileAST(self, node): 
+        self.visit(node.ext)
+
+        par1 = c_ast.Decl(
+            name='metadata', 
+            quals=None,
+            align=[],
+            storage=[],
+            funcspec=[],
+            init=None,
+            bitsize=None,
+            type=c_ast.PtrDecl(
+                quals=None,
+                type=c_ast.TypeDecl(
+                    declname='metadata',
+                    quals=[],
+                    align=None,
+                    type=c_ast.IdentifierType(names=['char']))))
+        par2 = c_ast.Decl(
+            name='data', 
+            quals=None,
+            align=[],
+            storage=[],
+            funcspec=[],
+            init=None,
+            bitsize=None,
+            type=c_ast.PtrDecl(
+                quals=None,
+                type=c_ast.TypeDecl(
+                    declname='data',
+                    quals=[],
+                    align=None,
+                    type=c_ast.IdentifierType(names=['void']))))
+        decl = c_ast.Decl(
+            name='notify',
+            quals=[],
+            align=[],
+            storage=[],
+            funcspec=[],
+            init=None,
+            bitsize=None,
+            type=c_ast.FuncDecl(
+                type=c_ast.TypeDecl(
+                    declname='notify',
+                    quals=[],
+                    align=None,
+                    type=c_ast.IdentifierType(names=['void'])),
+                args=c_ast.ParamList(
+                    params=[par1, par2])))
+
+        node.ext.insert(0, decl)
+
     def visit_ExprList(self, node): 
         buffer = []
 
@@ -422,3 +474,4 @@ class NotifyVisitor(c_ast.NodeVisitor):
                 c_ast.Constant(type='string', value=f'"{info}"'),
                 c_ast.UnaryOp('&', variable)
             ]))  
+    

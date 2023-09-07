@@ -565,9 +565,10 @@ class TestNotifyVisitor(unittest.TestCase):
     def _test_notify_node(self, src, expected):
 
         root = parse(src);
-        exprlist = find_node_of_type(root, c_ast.ExprList);
-        for expr in exprlist.exprs[:-1]: 
-            expr.data = {'flattened': True }
+        exprlist = find_node_of_type(root, c_ast.ExprList)
+        if exprlist is not None and len(exprlist.exprs) > 0:
+            for expr in exprlist.exprs[:-1]: 
+                expr.data = {'flattened': True }
 
         creator = ConstantNotifyInfoCreator()
         visitor = NotifyVisitor(creator)
@@ -576,6 +577,18 @@ class TestNotifyVisitor(unittest.TestCase):
         root_src = c_generator.CGenerator().visit(root)
         self.assertEqual(root_src.strip(), expected.strip())
     
+    def test_notify_declaration(self):
+        src = '''
+int main() {
+}'''
+        expected = '''
+void notify(char *metadata, void *data);
+int main()
+{
+}'''
+        root = parse(expected)
+        self._test_notify_node(src, expected)
+
     def test_notify_undefined(self):
         src = '''
 int main() {
@@ -583,11 +596,13 @@ int main() {
   return temp0, temp0;
 }'''
         expected = '''
+void notify(char *metadata, void *data);
 int main()
 {
   int temp0;
   return temp0, notify("CONSTANT0", &temp0), temp0;
 }'''
+
         self._test_notify_node(src, expected)
 
     def test_notify_constant(self): 
@@ -597,6 +612,7 @@ int main() {
   return temp0 = 5, temp0;
 }'''
         expected = '''
+void notify(char *metadata, void *data);
 int main()
 {
   int temp0;
@@ -612,6 +628,7 @@ int main() {
   return temp0 = j, temp1 = 2 * temp0, temp1;
 }'''
         expected = '''
+void notify(char *metadata, void *data);
 int main()
 {
   int temp0;
