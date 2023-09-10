@@ -8,8 +8,8 @@ sys.path.extend(['.', '..'])
 from pycparser import c_parser, c_ast, parse_file, c_generator
 from modules.visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
-def start(filename):
-    ast = parse_file(filename, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E'])
+def start(filename1, filename2):
+    ast = parse_file(filename1, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E'])
 
     # Add metadata
     ParentVisitor().visit(ast)
@@ -23,13 +23,20 @@ def start(filename):
     
     generator = c_generator.CGenerator()
     transformed_code = generator.visit(ast)
-    print(transformed_code)
 
+    output_f = open(filename2, "w")
+    output_f.write(transformed_code)
+    output_f.close()
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
-        filename = sys.argv[1]
+        filename1 = sys.argv[1]
     else:
-        filename = './scripts/main.c'
+        filename1 = './scripts/example/input.c'
 
-    start(filename)
+    if len(sys.argv) > 3:
+        filename2 = sys.argv[1]
+    else: 
+        filename2 = './scripts/example/temp.c'
+
+    start(filename1, filename2)
