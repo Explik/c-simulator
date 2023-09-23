@@ -7,13 +7,15 @@
 </head>
 <body>
     <p>Check console!</p>
+    <script src="../../dist/bundle.js"></script>
     <script src="output.js"></script>
     <script>
-        Module.onRuntimeInitialized = function() {
-            Module._main();
+        Module.onRuntimeInitialized = function() { 
+            var simulation = Simulation.create(Module);
+            simulation.run();
 
             console.log("Simulator code: ");
-            console.log(Module.simulatorCode);
+            console.log(simulation.getCode());
 
             console.log("Simulator steps: ");
             console.log(Module.simulatorSteps);
