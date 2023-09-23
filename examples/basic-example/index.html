@@ -12,7 +12,10 @@
         Module.onRuntimeInitialized = function() {
             Module._main();
 
-            console.log("Simulator steps");
+            console.log("Simulator code: ");
+            console.log(Module.simulatorCode);
+
+            console.log("Simulator steps: ");
             console.log(Module.simulatorSteps);
         };
 </script>
