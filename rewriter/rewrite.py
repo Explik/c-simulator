@@ -6,7 +6,7 @@ import sys
 sys.path.extend(['.', '..'])
 
 from pycparser import c_parser, c_ast, parse_file, c_generator
-from modules.visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from rewriter.visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
 def start(filename1, filename2):
     ast = parse_file(filename1, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E'])

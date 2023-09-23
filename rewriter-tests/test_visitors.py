@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from modules.visitors import ConstantNotifyInfoCreator, FindVisitor, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from rewriter.visitors import ConstantNotifyInfoCreator, FindVisitor, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
 def parse(src): 
     parser = c_parser.CParser(
