@@ -3,40 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notify Example</title>
-    <pre id="c-code"></pre>
-    <button click="previousStep">Prev</button>
-    <button click="">Next</button>
-    <script src="output.js"></script>
+    <title>Basic example Example</title>
 </head>
 <body>
+    <p>Check console!</p>
+    <script src="output.js"></script>
+    <script>
+        Module.onRuntimeInitialized = function() {
+            Module._main();
 
-<script>
-    let step = 0;
-
-    async function loadCode() {
-        let data = await fetch('./input.c').then(res => res.text());
-        var elem = document.getElementById('c-code');
-        elem.innerText = data;
-    }
-
-    function previousStep() {
-        if (step <= 0) return;
-
-        console.low("previousStep");
-    }
-
-    function nextStep() {
-        if (!window.codeChanges) return;
-        if (step > window.codeChanges.length - 2) return;
-        
-        console.low("nextStep");
-    }
-
-    Module.onRuntimeInitialized = function() {
-        loadCode();
-        Module._main();
-    };
+            console.log("Simulator steps");
+            console.log(Module.simulatorSteps);
+        };
 </script>
 
 </body>

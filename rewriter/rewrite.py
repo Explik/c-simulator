@@ -1,15 +1,44 @@
 from __future__ import print_function
 import sys
+import os
 
 # This is not required if you've installed pycparser into
 # your site-packages/ with setup.py
 sys.path.extend(['.', '..'])
 
 from pycparser import c_parser, c_ast, parse_file, c_generator
-from rewriter.visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
 
-def start(filename1, filename2):
-    ast = parse_file(filename1, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E'])
+def get_library_file_name(file_path): 
+    file_path_components = os.path.split(file_path)
+    file_folder = file_path_components[0]
+
+    return os.path.join(file_folder, "library.js")
+
+def get_temp_file_name(file_path): 
+    file_path_components = os.path.split(file_path)
+    file_name_and_extension = file_path_components[-1].rsplit('.', 1)
+    print(file_path_components)
+    file_folder = '/'.join(file_path_components[:-1])
+    file_name = file_name_and_extension[0]
+    file_extension = file_name_and_extension[1]
+
+    if file_folder:
+        return os.path.join(file_folder, file_name + ".g." + file_extension)
+    else: 
+        return file_name + ".g." + file_extension    
+
+def get_output_file_name(file_path): 
+    file_path_components = os.path.split(file_path)
+    file_folder = '/'.join(file_path_components[:-1])
+
+    if file_folder: 
+        return os.path.join(file_folder, "output.js")
+    else: 
+        return "output.js"
+
+def start_rewrite(file_path1, file_path2):
+    ast = parse_file(file_path1, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E'])
 
     # Add metadata
     ParentVisitor().visit(ast)
@@ -24,19 +53,23 @@ def start(filename1, filename2):
     generator = c_generator.CGenerator()
     transformed_code = generator.visit(ast)
 
-    output_f = open(filename2, "w")
+    output_f = open(file_path2, "w")
     output_f.write(transformed_code)
     output_f.close()
 
+def start_transpile(file_path1, file_path2, file_path3): 
+    os.system('emcc %s -s WASM=1 -o %s -s "EXPORTED_FUNCTIONS=[\'_main\']" --js-library %s' % (file_path1, file_path2, file_path3))
+
 if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        filename1 = sys.argv[1]
-    else:
-        filename1 = './scripts/example/input.c'
+    if len(sys.argv) < 2:
+        raise Exception("Sorry, please supply an input file")
+    
+    script_file = sys.argv[0]
+    library_file = get_library_file_name(script_file)
 
-    if len(sys.argv) > 3:
-        filename2 = sys.argv[1]
-    else: 
-        filename2 = './scripts/example/temp.c'
+    input_file = sys.argv[1]
+    temp_file = get_temp_file_name(input_file)
+    output_file = get_output_file_name(temp_file)
 
-    start(filename1, filename2)
+    start_rewrite(input_file, temp_file)
+    start_transpile(temp_file, output_file, library_file)
