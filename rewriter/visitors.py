@@ -56,7 +56,7 @@ class LocationVisitor(c_ast.NodeVisitor):
             node.coord.line,
             node.coord.column,
             node.coord.line,
-            node.coord.column + length
+            node.coord.column + length - 1
         ]
     
     def _visit_child_based_node(self, node, first_child = None, last_child = None, padding = 0): 
