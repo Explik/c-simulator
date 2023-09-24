@@ -28,6 +28,19 @@ describe('getEvaluatedCode', function () {
     const expected = "f(35);";
     assert.equal(actual, expected);
   });
+  it('replaces expression in middle (multi-line)', function () {
+    const code = "int main() {\n  return 5 * 7 + 6;\n}";
+    const steps = [{
+      type: 'expression',
+      dataType: "int",
+      dataValue: 35,
+      location: [2, 10, 2, 14]
+    }];
+
+    const actual = getEvaluatedCode(code, steps);
+    const expected = "int main() {\n  return 35 + 6;\n}";
+    assert.equal(actual, expected);
+  });
   it('replaces expression at end', function () {
     const code = "6 + 5 * 7;";
     const steps = [{
@@ -59,6 +72,46 @@ describe('getEvaluatedCode', function () {
 
     const actual = getEvaluatedCode(code, steps);
     const expected = "35 + 18;";
+    assert.equal(actual, expected);
+  });
+  it('replaces non-overlapping expressions on different lines', function () {
+    const code = "int main() {\n  int i = 3 * 3;\n  return i;\n}";
+    const steps = [
+      {
+        type: 'expression',
+        dataType: "int",
+        dataValue: 9,
+        location: [2, 11, 2, 15]
+      }, {
+        type: 'expression',
+        dataType: 'int',
+        dataValue: 9,
+        location: [3, 10, 3, 10]
+      }
+    ];
+
+    const actual = getEvaluatedCode(code, steps);
+    const expected = "int main() {\n  int i = 9;\n  return 9;\n}";
+    assert.equal(actual, expected);
+  });
+  it('replaces non-overlapping expressions on same line', function () {
+    const code = "int main() {\n  return 5 * 7 + 6 * 3;\n}";
+    const steps = [
+      {
+        type: 'expression',
+        dataType: "int",
+        dataValue: 35,
+        location: [2, 10, 2, 14]
+      }, {
+        type: 'expression',
+        dataType: 'int',
+        dataValue: 18,
+        location: [2, 18, 2, 22]
+      }
+    ];
+
+    const actual = getEvaluatedCode(code, steps);
+    const expected = "int main() {\n  return 35 + 18;\n}";
     assert.equal(actual, expected);
   });
   it('replaces overlapped expressions', function () {

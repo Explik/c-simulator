@@ -16,7 +16,7 @@ export function stepForward(steps, currentStep, mode) {
     if (mode !== "expression")
         throw new error("Unsupported mode " + mode);
 
-    return currentStep < steps.length - 1 ? currentStep + 1 : currentStep;
+    return currentStep < steps.length - 1 ? currentStep + 1 : undefined;
 }
 
 /**
@@ -30,7 +30,7 @@ export function stepBackwards(steps, currentStep, mode) {
     if (mode !== "expression")
         throw new error("Unsupported mode " + mode);
 
-    return currentStep > 0 ? currentStep - 1 : currentStep;
+    return currentStep > 0 ? currentStep - 1 : undefined;
 }
 
 /**
@@ -92,9 +92,9 @@ function getContentWithinLocation(code, location) {
 
     if (location[0] != location[2]) {
         return [
-            lines[location[0] - 1].substring(location[1]),
+            lines[location[0] - 1].substring(location[1] - 1),
             ...lines.filter((_, i) => location[0] + 1 < i && i < location[1] - 1),
-            lines[location[2] - 1].substring(0, location[3])
+            lines[location[2] - 1].substring(0, location[3] - 1)
         ].join("\n");
     }
     return lines[location[0] - 1].substring(location[1] - 1, location[3] - 1);
@@ -103,10 +103,10 @@ function getContentWithinLocation(code, location) {
 function getContentAfterLocation(code, location) {
     const lines = code.split('\n');
 
-    if (location[2] < lines.length - 1) {
+    if (location[2] != lines.length) {
         return [
             lines[location[2] - 1].substring(location[3]),
-            ...lines.filter((_, i) => i > location[2])
+            ...lines.filter((_, i) => i >= location[2])
         ].join("\n");
     }
     return lines[location[2] - 1].substring(location[3])
