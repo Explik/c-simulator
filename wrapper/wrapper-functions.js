@@ -93,7 +93,7 @@ function getContentWithinLocation(code, location) {
     if (location[0] != location[2]) {
         return [
             lines[location[0] - 1].substring(location[1] - 1),
-            ...lines.filter((_, i) => location[0] + 1 < i && i < location[1] - 1),
+            ...lines.filter((_, i) => location[0] + 1 < i && i < location[2] - 1),
             lines[location[2] - 1].substring(0, location[3] - 1)
         ].join("\n");
     }
