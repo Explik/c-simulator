@@ -26,7 +26,7 @@ export function stepForward(steps, currentStep, mode) {
  * @param {"expression"} mode
  * @returns {number}
  */
-export function stepBackwards(steps, currentStep, mode) {
+export function stepBackward(steps, currentStep, mode) {
     if (mode !== "expression")
         throw new error("Unsupported mode " + mode);
 
@@ -112,4 +112,4 @@ function getContentAfterLocation(code, location) {
     return lines[location[2] - 1].substring(location[3])
 }
 
-export default { stepForward, stepBackwards, getEvaluatedCode }
+export default { stepForward, stepBackward, getEvaluatedCode }

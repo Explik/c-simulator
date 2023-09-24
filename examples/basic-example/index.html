@@ -6,20 +6,41 @@
     <title>Basic example Example</title>
 </head>
 <body>
-    <p>Check console!</p>
+    <pre><code id="evaluated-code" class="language-c"></code></pre>
+    <button onclick="stepBackward()">Previous</button>
+    <button onclick="stepForward()">Next</button>
+    
+    <!-- Syntax highlight -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/c.min.js"></script>
+
+    <!-- Simulation -->
     <script src="../../dist/bundle.js"></script>
     <script src="output.js"></script>
     <script>
+        var simulation;
+
         Module.onRuntimeInitialized = function() { 
-            var simulation = Simulation.create(Module);
+            simulation = Simulation.create(Module);
             simulation.run();
-
-            console.log("Simulator code: ");
-            console.log(simulation.getCode());
-
-            console.log("Simulator steps: ");
-            console.log(Module.simulatorSteps);
+            updateCode();
         };
+
+        function stepForward() {
+            simulation.stepForward();
+            updateCode();
+        }
+        function stepBackward() {
+            simulation.stepBackward();
+            updateCode();
+        }
+        function updateCode() {
+            console.log("Evaluated simulator code: ");
+            console.log(simulation.getEvaluatedCode());
+            document.getElementById("evaluated-code").innerHTML = simulation.getEvaluatedCode();
+            hljs.highlightAll();
+        }
 </script>
 
 </body>
