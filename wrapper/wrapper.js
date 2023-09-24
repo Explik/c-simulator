@@ -26,16 +26,20 @@ class Simulation {
             
             this.code = this.module.simulatorCode;
             this.allSteps = this.module.simulatorSteps;
-            this.currentStep = this.allSteps[0];
+            this.currentStep = 0;
         }
     }
 
     stepForward(mode) {
-        this.currentStep = functions.stepForward(this.allSteps, this.currentStep, mode || "expression");
+        let nextStep = functions.stepForward(this.allSteps, this.currentStep, mode || "expression");
+        if (nextStep) this.currentStep = nextStep;
+        return !!nextStep;
     }
 
     stepBackward(mode) {
-        this.currentStep = functions.stepBackward(this.allSteps, this.currentStep, mode || "expression");
+        let previousStep = functions.stepBackward(this.allSteps, this.currentStep, mode || "expression");
+        if (previousStep) this.currentStep = previousStep;
+        return !!previousStep;
     }
 
     getCode() {
@@ -43,8 +47,7 @@ class Simulation {
     }
 
     getEvaluatedCode() {
-        // gets code where changes are applied
-        return this.code;
+        return functions.getEvaluatedCode(this.code, this.allSteps.slice(0, this.currentStep + 1));
     }
 
     /**

@@ -1,3 +1,3 @@
-import Simulation from "./wrapper";
+import Simulation from "./wrapper.js";
 
 window.Simulation = Simulation;
