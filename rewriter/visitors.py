@@ -371,14 +371,15 @@ class INotifyInfoCreator():
         pass
 
 class ConstantNotifyInfoCreator(INotifyInfoCreator):
-    def __init__(self):
+    def __init__(self, times = 1):
         super().__init__()
         self.counter = 0
+        self.times = times
 
     def create(self, dict): 
         buf = "CONSTANT" + str(self.counter)
         self.counter += 1
-        return buf
+        return [buf] * self.times
 
 class NotifyCreator(INotifyInfoCreator):
     def __init__(self):
@@ -396,7 +397,7 @@ class NotifyCreator(INotifyInfoCreator):
             temp_l = "l=[%s,%s,%s,%s]" % (arr[0], arr[1], arr[2], arr[3])
             buffer.append(temp_l)
         
-        return ";".join(buffer)
+        return [";".join(buffer)]
 
 class NotifyVisitor(c_ast.NodeVisitor):
     def __init__(self, creator: INotifyInfoCreator):
@@ -461,17 +462,21 @@ class NotifyVisitor(c_ast.NodeVisitor):
         for expr in node.exprs[:-1]: 
             buffer.append(expr)
             if len(expr.data) > 0:
-                buffer.append(self._create_notify_node(expr))
+                buffer.extend(self._create_notify_nodes(expr))
         buffer.append(node.exprs[-1])
         node.exprs = buffer
 
-    def _create_notify_node(self, node):
-        info = self.creator.create(node.data)
+    def _create_notify_nodes(self, node):
+        infos = self.creator.create(node.data)
+        return [self._create_notify_node(node, info) for info in infos];
+
+    def _create_notify_node(self, node, info): 
         variable = node.lvalue if type(node) == c_ast.Assignment else node
+
         return c_ast.FuncCall(
             name=c_ast.ID('notify'),
             args=c_ast.ExprList(exprs=[
                 c_ast.Constant(type='string', value=f'"{info}"'),
                 c_ast.UnaryOp('&', variable)
-            ]))  
+            ])) 
     

@@ -533,16 +533,16 @@ class TestNotifyCreator(unittest.TestCase):
         input = { "location": [0, 1, 2, 3] }
         
         actual = NotifyCreator().create(input)
-        expected = "l=[0,1,2,3]"
+        expected = ["l=[0,1,2,3]"]
 
         self.assertEqual(actual, expected)
 
     def test_expression_type(self): 
         # Tests serilization of ExpressionTypeVisitor data 
-        input = { "expression-type": "string*" }
+        input = { "expression-type": "string" }
 
         actual = NotifyCreator().create(input)
-        expected = "t=string*"
+        expected = ["t=string"]
 
         self.assertEqual(actual, expected)
 
@@ -554,15 +554,15 @@ class TestNotifyCreator(unittest.TestCase):
         }
 
         actual = NotifyCreator().create(input)
-        expected1 = "t=string*;l=[0,1,2,3]"
-        expected2 = "l=[0,1,2,3];t=string*"
+        expected1 = ["t=string*;l=[0,1,2,3]"]
+        expected2 = ["l=[0,1,2,3];t=string*"]
 
         self.assertTrue(actual == expected1 or actual == expected2);
 
     
 
 class TestNotifyVisitor(unittest.TestCase):
-    def _test_notify_node(self, src, expected):
+    def _test_notify_node(self, src, expected, times = 1):
 
         root = parse(src);
         exprlist = find_node_of_type(root, c_ast.ExprList)
@@ -570,7 +570,7 @@ class TestNotifyVisitor(unittest.TestCase):
             for expr in exprlist.exprs[:-1]: 
                 expr.data = {'flattened': True }
 
-        creator = ConstantNotifyInfoCreator()
+        creator = ConstantNotifyInfoCreator(times)
         visitor = NotifyVisitor(creator)
         visitor.visit(root)
 
@@ -602,8 +602,22 @@ int main()
   int temp0;
   return temp0, notify("CONSTANT0", &temp0), temp0;
 }'''
-
         self._test_notify_node(src, expected)
+
+    def test_notify_undefined_doubled(self):
+        src = '''
+int main() {
+  int temp0;
+  return temp0, temp0;
+}'''
+        expected = '''
+void notify(char *metadata, void *data);
+int main()
+{
+  int temp0;
+  return temp0, notify("CONSTANT0", &temp0), notify("CONSTANT0", &temp0), temp0;
+}'''
+        self._test_notify_node(src, expected, 2)
 
     def test_notify_constant(self): 
         src = '''
@@ -619,6 +633,21 @@ int main()
   return temp0 = 5, notify("CONSTANT0", &temp0), temp0;
 }'''
         self._test_notify_node(src, expected)
+
+    def test_notify_constant_trippled(self): 
+        src = '''
+int main() {
+  int temp0;
+  return temp0 = 5, temp0;
+}'''
+        expected = '''
+void notify(char *metadata, void *data);
+int main()
+{
+  int temp0;
+  return temp0 = 5, notify("CONSTANT0", &temp0), notify("CONSTANT0", &temp0), notify("CONSTANT0", &temp0), temp0;
+}'''
+        self._test_notify_node(src, expected, 3)
 
     def test_notify_binary(self): 
         src = '''
@@ -636,3 +665,20 @@ int main()
   return temp0 = j, notify("CONSTANT0", &temp0), temp1 = 2 * temp0, notify("CONSTANT1", &temp1), temp1;
 }'''
         self._test_notify_node(src, expected) 
+
+    def test_notify_binary_doubled(self): 
+        src = '''
+int main() {
+  int temp0;
+  int temp1;
+  return temp0 = j, temp1 = 2 * temp0, temp1;
+}'''
+        expected = '''
+void notify(char *metadata, void *data);
+int main()
+{
+  int temp0;
+  int temp1;
+  return temp0 = j, notify("CONSTANT0", &temp0), notify("CONSTANT0", &temp0), temp1 = 2 * temp0, notify("CONSTANT1", &temp1), notify("CONSTANT1", &temp1), temp1;
+}'''
+        self._test_notify_node(src, expected, 2) 
