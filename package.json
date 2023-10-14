@@ -3,7 +3,7 @@
   "scripts": {
     "build": "webpack --mode production",
     "build-dev": "webpack --mode development --watch",
-    "test": "mocha ./wrapper-test/*.test.js --require @babel/register"
+    "test": "mocha ./wrapper/*.test.js --require @babel/register"
   },
   "devDependencies": {
     "@babel/cli": "^7.22.15",

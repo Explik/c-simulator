@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from rewriter.visitors import ConstantNotifyInfoCreator, FindVisitor, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from visitors import FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -10,6 +10,8 @@ def parse(src):
                 yacc_optimize=False,
                 yacctab='yacctab')
     return parser.parse(src)
+def stringify(node): 
+    return c_generator.CGenerator().visit(node)
 
 def find_node(root, predicate, skip_matches = 0): 
     return FindVisitor(predicate, skip_matches).visit(root)
@@ -20,6 +22,8 @@ def find_decl_with_name(root, name, skip_matches = 0):
 def find_id_with_name(root, name, skip_matches = 0):
     return find_node(root, lambda n: isinstance(n, c_ast.ID) and n.name == name, skip_matches)
 
+def fail():
+   raise Exception()
 
 class TestFindVisitor(unittest.TestCase):
     def test_find_nothing(self):  
@@ -326,6 +330,18 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 
         self.assertEqual(identifier.data['expression-type'], 'int')
 
+
+class TestIdTransformation(unittest.TestCase):
+    def test_apply_id(self):
+        transformation = IdTransformation(
+            lambda: "temp0",
+            fail
+        )
+
+        input = c_ast.ID("a", data={ "expression-type": "int" })
+        output = transformation.apply(input)
+
+        self.assertEqual(stringify(output), "a")
 
 class TestFlattenVisitor(unittest.TestCase):
     def _test_flatten_node(self, node, src_expr, src_variables):

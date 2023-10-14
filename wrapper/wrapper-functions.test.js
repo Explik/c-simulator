@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { stepForward, stepBackwards, getEvaluatedCode } from '../wrapper/wrapper-functions.js';
+import { stepForward, stepBackwards, getEvaluatedCode } from './wrapper-functions.js';
 
 describe('getEvaluatedCode', function () {
   it('replaces expression at beginning', function () {

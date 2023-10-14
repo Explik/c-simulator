@@ -1,5 +1,8 @@
+from typing import Callable
 from pycparser import c_ast
+from visitors_helper import createNotifyFromExpr
 
+# Metadata visitors
 class FindVisitor(c_ast.NodeVisitor): 
     """ Finds first node matching predicate (depth-first)
     """
@@ -202,6 +205,136 @@ class ExpressionTypeVisitor(c_ast.NodeVisitor):
         
         if node.op in ['=', '+=']:
             node.data[self.property_name] = node.rvalue.data[self.property_name]
+
+# Transformation visitors must follow the following rules:
+# - Expression transformations must return c_ast.ExprList
+# - Statement transformations must return another statement
+# - Block transformations must return c_ast.Compound
+class BaseTransformation(): 
+    def __init__(self, var: Callable, map: Callable) -> None:
+        self.createTemporaryVariable = var;
+        self.callback = map;
+
+    def isApplicable(node: c_ast.Node) -> bool: 
+        raise Exception("isApplicable is not implemented")
+    
+    def apply(node: c_ast.Node) -> c_ast.Node:
+        raise Exception("apply is not implemented")
+
+
+# Performs Id transformation
+# a
+# (temp0 = a, notify(...), temp0)
+class IdTransformation(BaseTransformation):
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.ID)
+    
+    def apply(self, node: c_ast.Node) -> c_ast.ExprList:
+        type = "constant"
+        temporaryVariable = self.createTemporaryVariable(type)
+
+        return c_ast.ExprList([
+            c_ast.Assignment(temporaryVariable, node),
+            createNotifyFromExpr(node, temporaryVariable),
+            c_ast.ID(temporaryVariable)
+        ])
+
+
+# # Performs BinaryOp transformation
+# # a * b
+# # (temp0 = a, notify(...), temp0), (temp1 = b, notify(...), temp1)
+# # (temp0 = a, notify(...), temp1 = b, notify(...), temp2 = temp0 * temp1, notify(...), temp2)
+# class BinaryOpTransformation(BaseTransformation):
+#     def isApplicable(self, node: c_ast.Node) -> bool:
+#         return isinstance(node, c_ast.BinaryOp)
+    
+#     def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
+#         temporaryVariable = self.createTemporaryVariable()
+
+#         buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
+#         buffer_right = list(self.callback(node.right)) if not isinstance(node.right, c_ast.Constant) else [node.right]
+
+#         buffer: list[c_ast.Node] = []
+#         buffer.extend(buffer_left[:-1])
+#         buffer.extend(buffer_right[:-1])
+#         buffer.append(c_ast.Assignment(
+#             '=',
+#             temporaryVariable,
+#             buffer_left[-1],
+#             buffer_right[-1]
+#         ))
+#         buffer.append(createNotifyFromExpr(node, temporaryVariable))
+#         buffer.append(temporaryVariable)
+
+#         return c_ast.ExprList(buffer)
+
+
+# # Performs Assignment transformation
+# # a = b
+# # a = (temp0 = b, notify(...), temp0)
+# # a = (temp0 = b, notify(...), notify(...), temp0)
+# class AssignmentTransformation(BaseTransformation): 
+#     def isApplicable(self, node: c_ast.Node) -> bool:
+#         return isinstance(node, c_ast.Assignment)
+    
+#     def apply(self, node: c_ast.Assignment) -> c_ast.ExprList:
+#         if not isinstance(node.lvalue, c_ast.ID):
+#             raise Exception("Unsupported assigment: only id assignment allowed")
+
+#         temporaryVariable = self.createTemporaryVariable()
+
+#         buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
+        
+#         buffer: list[c_ast.Node] = []
+#         buffer.extend(buffer_rvalue[:-1])
+#         buffer.append(c_ast.Assignment(
+#             node.op,
+#             temporaryVariable,
+#             buffer_rvalue[-1]
+#         ))
+#         buffer.append(createNotifyFromAssigment(node, temporaryVariable))
+#         buffer.append(temporaryVariable)
+
+#         return c_ast.ExprList(buffer)
+
+
+# # Performs Decl transformation
+# # int b = a * 5;
+# # int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), temp1);
+# # int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), notify(...), temp1);
+# class DeclTransformation(BaseTransformation): 
+#     def isApplicable(self, node: c_ast.Node) -> bool:
+#         return isinstance(node, c_ast.Decl)
+    
+    
+#     def apply(self, node: c_ast.Decl) -> c_ast.Decl:
+#         # Only supports init
+#         temporaryVariable = self.createTemporaryVariable()
+
+#         buffer_init = list(self.callback(node.init)) 
+#         buffer_init.insert(-2, createNotifyFromDecl(node,temporaryVariable))
+    
+#         return c_ast.Decl(
+#             node.name,
+#             node.quals,
+#             node.align,
+#             node.storage,
+#             node.funcspec,
+#             node.type,
+#             c_ast.ExprList(buffer_init),
+#             node.bitsize,
+#             node.bitsize,
+#             node.data
+#         )
+
+
+# class CompoundTransformation(BaseTransformation): 
+#     pass 
+
+
+# class FileAstTransformation(BaseTransformation):
+#     pass
+
 
 # Used by FlattenVisitor
 class FlattenVisitor(c_ast.NodeVisitor):
