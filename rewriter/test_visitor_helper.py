@@ -3,7 +3,7 @@ from pycparser import c_ast, c_generator
 from visitors_helper import createNotify
 
 def stringify(node): 
-    return c_generator.CGenerator().visit(node)
+   return c_generator.CGenerator().visit(node)
 
 class TestHelpers(unittest.TestCase):
     def test_create_notify_single(self):  

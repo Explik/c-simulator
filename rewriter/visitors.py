@@ -1,6 +1,6 @@
 from typing import Callable
 from pycparser import c_ast
-from visitors_helper import createNotifyFromExpr
+from visitors_helper import createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
 
 # Metadata visitors
 class FindVisitor(c_ast.NodeVisitor): 
@@ -234,98 +234,125 @@ class IdTransformation(BaseTransformation):
         temporaryVariable = self.createTemporaryVariable(type)
 
         return c_ast.ExprList([
-            c_ast.Assignment(temporaryVariable, node),
+            c_ast.Assignment('=', temporaryVariable, node),
             createNotifyFromExpr(node, temporaryVariable),
-            c_ast.ID(temporaryVariable)
+            temporaryVariable
         ])
 
 
-# # Performs BinaryOp transformation
-# # a * b
-# # (temp0 = a, notify(...), temp0), (temp1 = b, notify(...), temp1)
-# # (temp0 = a, notify(...), temp1 = b, notify(...), temp2 = temp0 * temp1, notify(...), temp2)
-# class BinaryOpTransformation(BaseTransformation):
-#     def isApplicable(self, node: c_ast.Node) -> bool:
-#         return isinstance(node, c_ast.BinaryOp)
+# Performs BinaryOp transformation
+# a * b
+# (temp0 = a, notify(...), temp0), (temp1 = b, notify(...), temp1)
+# (temp0 = a, notify(...), temp1 = b, notify(...), temp2 = temp0 * temp1, notify(...), temp2)
+class BinaryOpTransformation(BaseTransformation):
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.BinaryOp)
     
-#     def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
-#         temporaryVariable = self.createTemporaryVariable()
+    def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
+        type = "constant"
+        temporaryVariable = self.createTemporaryVariable(type)
 
-#         buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
-#         buffer_right = list(self.callback(node.right)) if not isinstance(node.right, c_ast.Constant) else [node.right]
+        buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
+        buffer_right = list(self.callback(node.right)) if not isinstance(node.right, c_ast.Constant) else [node.right]
 
-#         buffer: list[c_ast.Node] = []
-#         buffer.extend(buffer_left[:-1])
-#         buffer.extend(buffer_right[:-1])
-#         buffer.append(c_ast.Assignment(
-#             '=',
-#             temporaryVariable,
-#             buffer_left[-1],
-#             buffer_right[-1]
-#         ))
-#         buffer.append(createNotifyFromExpr(node, temporaryVariable))
-#         buffer.append(temporaryVariable)
+        buffer: list[c_ast.Node] = []
+        buffer.extend(buffer_left[:-1])
+        buffer.extend(buffer_right[:-1])
+        buffer.append(c_ast.Assignment(
+            '=',
+            temporaryVariable,
+            c_ast.BinaryOp(
+                node.op,
+                buffer_left[-1],
+                buffer_right[-1]
+            )
+        ))
+        buffer.append(createNotifyFromExpr(node, temporaryVariable))
+        buffer.append(temporaryVariable)
 
-#         return c_ast.ExprList(buffer)
+        return c_ast.ExprList(buffer)
 
 
-# # Performs Assignment transformation
-# # a = b
-# # a = (temp0 = b, notify(...), temp0)
-# # a = (temp0 = b, notify(...), notify(...), temp0)
-# class AssignmentTransformation(BaseTransformation): 
-#     def isApplicable(self, node: c_ast.Node) -> bool:
-#         return isinstance(node, c_ast.Assignment)
+# Performs Assignment transformation
+# a = b
+# a = (temp0 = b, notify(...), temp0)
+# a = (temp0 = b, notify(...), notify(...), temp0)
+class AssignmentTransformation(BaseTransformation): 
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.Assignment)
     
-#     def apply(self, node: c_ast.Assignment) -> c_ast.ExprList:
-#         if not isinstance(node.lvalue, c_ast.ID):
-#             raise Exception("Unsupported assigment: only id assignment allowed")
+    def apply(self, node: c_ast.Assignment) -> c_ast.ExprList:
+        if not isinstance(node.lvalue, c_ast.ID):
+            raise Exception("Unsupported assigment: only id assignment allowed")
 
-#         temporaryVariable = self.createTemporaryVariable()
+        type = "constant"
+        temporaryVariable = self.createTemporaryVariable(type)
 
-#         buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
+        buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
         
-#         buffer: list[c_ast.Node] = []
-#         buffer.extend(buffer_rvalue[:-1])
-#         buffer.append(c_ast.Assignment(
-#             node.op,
-#             temporaryVariable,
-#             buffer_rvalue[-1]
-#         ))
-#         buffer.append(createNotifyFromAssigment(node, temporaryVariable))
-#         buffer.append(temporaryVariable)
+        buffer: list[c_ast.Node] = []
+        buffer.extend(buffer_rvalue[:-1])
+        buffer.append(c_ast.Assignment(
+            '=',
+            temporaryVariable,
+            c_ast.Assignment(
+                node.op,
+                node.lvalue,
+                buffer_rvalue[-1]
+            )
+        ))
+        buffer.append(createNotifyFromAssigment(node, temporaryVariable))
+        buffer.append(temporaryVariable)
 
-#         return c_ast.ExprList(buffer)
+        return c_ast.ExprList(buffer)
 
 
-# # Performs Decl transformation
-# # int b = a * 5;
-# # int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), temp1);
-# # int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), notify(...), temp1);
-# class DeclTransformation(BaseTransformation): 
-#     def isApplicable(self, node: c_ast.Node) -> bool:
-#         return isinstance(node, c_ast.Decl)
+# Performs Decl transformation
+# int b = a * 5;
+# int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), temp1);
+# int b = (temp0 = a, notify(...), temp1 = temp0 * 5, notify(...), notify(...), temp1);
+class DeclTransformation(BaseTransformation): 
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.Decl)
     
-    
-#     def apply(self, node: c_ast.Decl) -> c_ast.Decl:
-#         # Only supports init
-#         temporaryVariable = self.createTemporaryVariable()
+    def apply(self, node: c_ast.Decl) -> c_ast.Decl:
+        # Only supports init
+        type = "constant"
+        temporaryVariable = self.createTemporaryVariable(type)
 
-#         buffer_init = list(self.callback(node.init)) 
-#         buffer_init.insert(-2, createNotifyFromDecl(node,temporaryVariable))
+        init = None
+
+        if node.init == None: 
+            init = c_ast.ExprList([
+                createNotifyFromDecl(node, temporaryVariable),
+                temporaryVariable
+            ])
+        elif isinstance(node.init, c_ast.Constant):
+            init = c_ast.ExprList([
+                c_ast.Assignment('=', temporaryVariable, node.init),
+                createNotifyFromDecl(node, temporaryVariable),
+                temporaryVariable
+            ])
+        else:
+            callback_init = list(self.callback(node.init)) 
+            buffer_init = callback_init[:-1]
+            buffer_init.append(c_ast.Assignment('=', temporaryVariable, callback_init[-1]))
+            buffer_init.append(createNotifyFromDecl(node,temporaryVariable))
+            buffer_init.append(temporaryVariable)
+            init = c_ast.ExprList(buffer_init)
     
-#         return c_ast.Decl(
-#             node.name,
-#             node.quals,
-#             node.align,
-#             node.storage,
-#             node.funcspec,
-#             node.type,
-#             c_ast.ExprList(buffer_init),
-#             node.bitsize,
-#             node.bitsize,
-#             node.data
-#         )
+        return c_ast.Decl(
+            node.name,
+            node.quals,
+            node.align,
+            node.storage,
+            node.funcspec,
+            node.type,
+            init,
+            node.bitsize,
+            node.bitsize,
+            node.data
+        )
 
 
 # class CompoundTransformation(BaseTransformation): 

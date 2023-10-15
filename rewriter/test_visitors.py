@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from visitors import FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -22,8 +22,18 @@ def find_decl_with_name(root, name, skip_matches = 0):
 def find_id_with_name(root, name, skip_matches = 0):
     return find_node(root, lambda n: isinstance(n, c_ast.ID) and n.name == name, skip_matches)
 
-def fail():
+def fail(node):
    raise Exception()
+
+# Produces [ID("CALLBACK_1")], [ID("CALLBACK_2")], ...
+def create_expression_callback():
+    count = [0]  # Using a list to store the count as a mutable object
+
+    def callback(node):
+        count[0] += 1
+        return c_ast.ExprList([c_ast.ID(f'CALLBACK_EXPR_{count[0]}'), c_ast.ID(f'CALLBACK_VALUE_{count[0]}')])
+
+    return callback
 
 class TestFindVisitor(unittest.TestCase):
     def test_find_nothing(self):  
@@ -334,14 +344,196 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 class TestIdTransformation(unittest.TestCase):
     def test_apply_id(self):
         transformation = IdTransformation(
-            lambda: "temp0",
+            lambda t: c_ast.ID("temp0"),
             fail
         )
 
-        input = c_ast.ID("a", data={ "expression-type": "int" })
+        input = c_ast.ID("a", data={ "expression-type": "int", "location": [0, 1, 2, 3] })
         output = transformation.apply(input)
 
-        self.assertEqual(stringify(output), "a")
+        self.assertEqual(
+            stringify(output), 
+            'temp0 = a, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
+        )
+
+class TestBinaryOpTransformation(unittest.TestCase): 
+    def test_apply_left_right_constant(self): 
+        transformation = BinaryOpTransformation(
+            lambda t: c_ast.ID("temp0"),
+            fail
+        )
+
+        input = c_ast.BinaryOp(
+            '+', 
+            c_ast.Constant('int', 1), 
+            c_ast.Constant('int', 2), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'temp0 = 1 + 2, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
+        )
+
+    def test_apply_right_constant(self): 
+        transformation = BinaryOpTransformation(
+            lambda t: c_ast.ID("temp0"),
+            create_expression_callback()
+        )
+
+        input = c_ast.BinaryOp(
+            '+', 
+            c_ast.ID('a'), 
+            c_ast.Constant('int', 2), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'CALLBACK_EXPR_1, temp0 = CALLBACK_VALUE_1 + 2, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
+        )
+        # a + 2  
+        # temp0 = a, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp1 = temp0 + 2, notify("a=eval;t=int;l=[0,1,2,3]", &temp1), temp1
+
+    def test_apply_left_constant(self): 
+        transformation = BinaryOpTransformation(
+            lambda t: c_ast.ID("temp0"),
+            create_expression_callback()
+        )
+
+        input = c_ast.BinaryOp(
+            '+', 
+            c_ast.Constant('int', 1), 
+            c_ast.ID('b'), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'CALLBACK_EXPR_1, temp0 = 1 + CALLBACK_VALUE_1, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
+        )
+
+    def test_apply_no_constants(self): 
+        transformation = BinaryOpTransformation(
+            lambda t: c_ast.ID("temp0"),
+            create_expression_callback()
+        )
+
+        input = c_ast.BinaryOp(
+            '+', 
+            c_ast.ID('a'), 
+            c_ast.ID('b'), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'CALLBACK_EXPR_1, CALLBACK_EXPR_2, temp0 = CALLBACK_VALUE_1 + CALLBACK_VALUE_2, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
+        )
+
+
+class TestAssignmentTransformation(unittest.TestCase): 
+    def test_apply_constant(self): 
+        transformation = AssignmentTransformation(
+            lambda t: c_ast.ID("temp0"),
+            fail
+        )
+
+        input = c_ast.Assignment(
+            '=', 
+            c_ast.ID("a"), 
+            c_ast.Constant("int", 123), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'temp0 = (a = 123), notify("a=assign;t=int;i=a", &temp0), temp0'
+        )
+    
+    def test_apply_non_constant(self): 
+        transformation = AssignmentTransformation(
+            lambda t: c_ast.ID("temp0"),
+            create_expression_callback()
+        )
+
+        input = c_ast.Assignment(
+            '=', 
+            c_ast.ID("a"), 
+            c_ast.ID("b"), 
+            data={ "expression-type": "int", "location": [0, 1, 2, 3] })
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'CALLBACK_EXPR_1, temp0 = (a = CALLBACK_VALUE_1), notify("a=assign;t=int;i=a", &temp0), temp0'
+        )
+
+
+class TestDeclTransformation(unittest.TestCase): 
+    def test_apply_non_initialized(self): 
+        transformation = DeclTransformation(
+            lambda t: c_ast.ID("temp0"),
+            fail
+        )
+
+        src = '''
+            int main() {
+                int abc;
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
+        input.data = { "expression-type": "int" }
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'int abc = (notify("a=decl;t=int;i=abc", &temp0), temp0)'
+        )
+
+    def test_apply_constant_initialized(self): 
+        transformation = DeclTransformation(
+            lambda t: c_ast.ID("temp0"),
+            fail
+        )
+
+        src = '''
+            int main() {
+                int abc = 5;
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
+        input.data = { "expression-type": "int" }
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'int abc = (temp0 = 5, notify("a=decl;t=int;i=abc", &temp0), temp0)'
+        )
+    
+    def test_apply_non_constant_initialized(self): 
+        transformation = DeclTransformation(
+            lambda t: c_ast.ID("temp0"),
+            create_expression_callback()
+        )
+
+        src = '''
+            int main() {
+                int abc = i;
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
+        input.data = { "expression-type": "int" }
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'int abc = (CALLBACK_EXPR_1, temp0 = CALLBACK_VALUE_1, notify("a=decl;t=int;i=abc", &temp0), temp0)'
+        )
+
 
 class TestFlattenVisitor(unittest.TestCase):
     def _test_flatten_node(self, node, src_expr, src_variables):
