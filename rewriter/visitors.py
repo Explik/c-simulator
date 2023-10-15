@@ -1,6 +1,9 @@
+from copy import deepcopy
 from typing import Callable
+from inspect import getmembers, isroutine
 from pycparser import c_ast
 from visitors_helper import createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
+
 
 # Metadata visitors
 class FindVisitor(c_ast.NodeVisitor): 
@@ -220,6 +223,26 @@ class BaseTransformation():
     
     def apply(node: c_ast.Node) -> c_ast.Node:
         raise Exception("apply is not implemented")
+
+
+# Performs replace of all attributes of type Node 
+# return a -> return CALLBACK_VALUE 
+class NodeTransformation(BaseTransformation): 
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.Node)
+
+    def apply(self, node: c_ast.Node) -> c_ast.Node:
+        all_attributes = getmembers(node, lambda a: not(isroutine(a)))
+        public_attributes = [a for a in all_attributes if not(a[0].startswith('__') and a[0].endswith('__'))]
+        node_attributes = [a for a in public_attributes if isinstance(a[1], c_ast.Node)]
+        non_constant_attributes = [a for a in node_attributes if not(isinstance(a[1], c_ast.Constant))]
+        
+        cloned_node = deepcopy(node)
+        for attribute in non_constant_attributes: 
+            setattr(cloned_node, attribute[0], self.callback(attribute[1]))
+
+        return cloned_node
+
 
 
 # Performs Id transformation

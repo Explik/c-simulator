@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -25,7 +25,7 @@ def find_id_with_name(root, name, skip_matches = 0):
 def fail(node):
    raise Exception()
 
-# Produces [ID("CALLBACK_1")], [ID("CALLBACK_2")], ...
+# Produces [ID("CALLBACK_EXPR_1, CALLBACK_VALUE_1")], [ID("CALLBACK_EXPR_2, CALLBACK_VALUE_2")], ...
 def create_expression_callback():
     count = [0]  # Using a list to store the count as a mutable object
 
@@ -34,6 +34,18 @@ def create_expression_callback():
         return c_ast.ExprList([c_ast.ID(f'CALLBACK_EXPR_{count[0]}'), c_ast.ID(f'CALLBACK_VALUE_{count[0]}')])
 
     return callback
+
+
+# Produces [ID("CALLBACK_1")], [ID("CALLBACK_2")], ...
+def create_statement_callback():
+    count = [0]  # Using a list to store the count as a mutable object
+
+    def callback(node):
+        count[0] += 1
+        return c_ast.ExprList([c_ast.ID(f'CALLBACK_{count[0]}')])
+
+    return callback
+
 
 class TestFindVisitor(unittest.TestCase):
     def test_find_nothing(self):  
@@ -340,6 +352,44 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 
         self.assertEqual(identifier.data['expression-type'], 'int')
 
+# Transforms any child nodes identified through introspection
+# Please note, the transformation may not always produce a valid result,
+# but should work well enough in most cases to avoid having to implement 
+# a transformation per note type
+class TestNodeTransformation(unittest.TestCase): 
+    def test_apply_return(self): 
+        transformation = NodeTransformation(
+            fail, 
+            create_expression_callback())
+        
+        input = c_ast.Return(c_ast.ID("a"))
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'return CALLBACK_EXPR_1, CALLBACK_VALUE_1;'
+        )
+    
+    def test_apply_for_loop(self): 
+        transformation = NodeTransformation(
+            fail, 
+            create_statement_callback())
+        
+        src = '''
+            int main() {
+                for(int i = 0; i < 5; i++) 
+                    printf("%d", f);
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.For)
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output).strip(), 
+            'for (CALLBACK_2; CALLBACK_1; CALLBACK_3)\n  CALLBACK_4;'
+        )
+
 
 class TestIdTransformation(unittest.TestCase):
     def test_apply_id(self):
@@ -355,6 +405,7 @@ class TestIdTransformation(unittest.TestCase):
             stringify(output), 
             'temp0 = a, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
         )
+
 
 class TestBinaryOpTransformation(unittest.TestCase): 
     def test_apply_left_right_constant(self): 
