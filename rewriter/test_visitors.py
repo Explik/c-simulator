@@ -25,6 +25,10 @@ def find_id_with_name(root, name, skip_matches = 0):
 def fail(node):
    raise Exception()
 
+def create_identity_callback(): 
+    def callback(node):
+        return node
+
 # Produces [ID("CALLBACK_EXPR_1, CALLBACK_VALUE_1")], [ID("CALLBACK_EXPR_2, CALLBACK_VALUE_2")], ...
 def create_expression_callback():
     count = [0]  # Using a list to store the count as a mutable object
@@ -357,6 +361,27 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 # but should work well enough in most cases to avoid having to implement 
 # a transformation per note type
 class TestNodeTransformation(unittest.TestCase): 
+    def test_apply_identity(self):
+        transformation = NodeTransformation(
+            fail, 
+            create_identity_callback())
+
+        src = "\n".join([
+            'int main()',
+            '{',
+            '  for (int i = 0; i < 5; i++)',
+            '    printf("%d", i);',
+            '',
+            '}'
+        ])
+        root = parse(src)
+        output = transformation.apply(root)
+
+        self.assertEqual(
+            stringify(output).strip(), 
+            src
+        )
+
     def test_apply_return(self): 
         transformation = NodeTransformation(
             fail, 
