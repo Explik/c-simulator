@@ -60,6 +60,17 @@ def create_statement_callback():
 
     return callback
 
+# Produces METHOD("void CALLBACK_1() { }"), METHOD("void CALLBACK_2() { }")
+def create_method_callback(): 
+    count = [0]  # Using a list to store the count as a mutable object
+
+    def callback(node):
+        count[0] += 1
+        src = f'void CALLBACK_{count[0]}() {{}}'
+        root = parse(src)
+        return find_node_of_type(root, c_ast.FuncDecl)
+
+    return callback
 
 class TestFindVisitor(unittest.TestCase):
     def test_find_nothing(self):  
@@ -670,7 +681,7 @@ class TestFileAstTransformation(unittest.TestCase):
     def test_apply_without_includes(self): 
         transformation = FileAstTransformation(
             fail, 
-            create_statement_callback()
+            create_method_callback()
         )
 
         src = '''
@@ -681,7 +692,7 @@ class TestFileAstTransformation(unittest.TestCase):
 
         self.assertEqual(
             stringify(output).strip(),
-            'void notify(char *metadata, void *data);\nCALLBACK_1;'
+            'void notify(char *metadata, void *data);\nvoid CALLBACK_1();'
         )
         
 
