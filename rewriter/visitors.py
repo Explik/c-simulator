@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Callable
 from inspect import getmembers, isroutine
 from pycparser import c_ast
-from visitors_helper import createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
+from visitors_helper import createNotifyDecl, createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
 
 
 # Metadata visitors
@@ -209,14 +209,16 @@ class ExpressionTypeVisitor(c_ast.NodeVisitor):
         if node.op in ['=', '+=']:
             node.data[self.property_name] = node.rvalue.data[self.property_name]
 
+
 # Transformation visitors must follow the following rules:
 # - Expression transformations must return c_ast.ExprList
 # - Statement transformations must return another statement
 # - Block transformations must return c_ast.Compound
 class BaseTransformation(): 
-    def __init__(self, var: Callable, map: Callable) -> None:
-        self.createTemporaryVariable = var;
-        self.callback = map;
+    def __init__(self, createVariable: Callable, callback: Callable) -> None: 
+        self.createVariable: Callable|None = createVariable;
+        self.callback: Callable|None = callback;
+        self.getAndClearVariables: Callable|None;
 
     def isApplicable(node: c_ast.Node) -> bool: 
         raise Exception("isApplicable is not implemented")
@@ -244,7 +246,6 @@ class NodeTransformation(BaseTransformation):
         return cloned_node
 
 
-
 # Performs Id transformation
 # a
 # (temp0 = a, notify(...), temp0)
@@ -254,7 +255,7 @@ class IdTransformation(BaseTransformation):
     
     def apply(self, node: c_ast.Node) -> c_ast.ExprList:
         type = "constant"
-        temporaryVariable = self.createTemporaryVariable(type)
+        temporaryVariable = self.createVariable(type)
 
         return c_ast.ExprList([
             c_ast.Assignment('=', temporaryVariable, node),
@@ -273,7 +274,7 @@ class BinaryOpTransformation(BaseTransformation):
     
     def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
         type = "constant"
-        temporaryVariable = self.createTemporaryVariable(type)
+        temporaryVariable = self.createVariable(type)
 
         buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
         buffer_right = list(self.callback(node.right)) if not isinstance(node.right, c_ast.Constant) else [node.right]
@@ -309,7 +310,7 @@ class AssignmentTransformation(BaseTransformation):
             raise Exception("Unsupported assigment: only id assignment allowed")
 
         type = "constant"
-        temporaryVariable = self.createTemporaryVariable(type)
+        temporaryVariable = self.createVariable(type)
 
         buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
         
@@ -341,7 +342,7 @@ class DeclTransformation(BaseTransformation):
     def apply(self, node: c_ast.Decl) -> c_ast.Decl:
         # Only supports init
         type = "constant"
-        temporaryVariable = self.createTemporaryVariable(type)
+        temporaryVariable = self.createVariable(type)
 
         init = None
 
@@ -378,12 +379,48 @@ class DeclTransformation(BaseTransformation):
         )
 
 
-# class CompoundTransformation(BaseTransformation): 
-#     pass 
+# Performs FuncDef transformation
+# int func () { int a = 5 * 5; }
+# int func () { int temp0; int a = (temp0 = 5 * 5, notify(...), temp0); }
+class FuncDefTransformation(BaseTransformation): 
+    def __init__(self, createVariable: Callable, popVariables: Callable, callback: Callable) -> None:
+        super().__init__(createVariable, callback)
+        self.popVariables: Callable = popVariables
+        
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.FuncDef)
+    
+    def apply(self, node: c_ast.FuncDef) -> c_ast.Decl:
+        if not(isinstance(node.body, c_ast.Compound)):
+            raise Exception("Body is not compound")
+
+        body_buffer = self.popVariables()
+        body_buffer.extend([self.callback(i) for i in node.body.block_items])
+
+        return c_ast.FuncDef(
+            node.decl,
+            node.param_decls,
+            c_ast.Compound(body_buffer),
+            node.coord,
+            node.data
+        )
 
 
-# class FileAstTransformation(BaseTransformation):
-#     pass
+# Performs FileAst transformation 
+# Adds notify declaration to start of file
+class FileAstTransformation(BaseTransformation):
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.FileAST)
+    
+    def apply(self, node: c_ast.FileAST) -> c_ast.Decl:
+        buffer = [createNotifyDecl()]
+        buffer.extend([self.callback(i) for i in node.ext])
+
+        return c_ast.FileAST(
+            buffer,
+            node.coord, 
+            node.data
+        )
 
 
 # Used by FlattenVisitor

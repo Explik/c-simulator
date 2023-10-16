@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, FuncDefTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -24,6 +24,16 @@ def find_id_with_name(root, name, skip_matches = 0):
 
 def fail(node):
    raise Exception()
+
+def create_single_declaration(): 
+    src = "int main() { int temp0; }"
+    root = parse(src)
+    return [find_node_of_type(root, c_ast.Decl, skip_matches=1)]
+
+def create_multiple_declarations(): 
+    src = "int main() { int temp0; int temp1;  }"
+    root = parse(src)
+    return [find_node_of_type(root, c_ast.Decl, skip_matches=1), find_node_of_type(root, c_ast.Decl, skip_matches=2)]
 
 def create_identity_callback(): 
     def callback(node):
@@ -611,6 +621,70 @@ class TestDeclTransformation(unittest.TestCase):
         )
 
 
+class TestFuncDef(unittest.TestCase): 
+    def test_apply_single_statement(self): 
+        transformation = FuncDefTransformation(
+            fail, 
+            create_single_declaration,
+            create_statement_callback()
+        )
+
+        src = '''
+            int main() {
+                int a = 4 * 4;
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.FuncDef)
+        output = transformation.apply(input)
+        
+        self.assertEqual(
+            stringify(output).strip(),
+            'int main()\n{\n  int temp0;\n  CALLBACK_1;\n}'
+        )
+
+    def test_apply_multiple_statement(self): 
+        transformation = FuncDefTransformation(
+            fail, 
+            create_multiple_declarations,
+            create_statement_callback()
+        )
+
+        src = '''
+            int main() {
+                int a = 4 * 4;
+                int b = 5 * 5;
+            }
+        '''
+        root = parse(src)
+        input = find_node_of_type(root, c_ast.FuncDef)
+        output = transformation.apply(input)
+        
+        self.assertEqual(
+            stringify(output).strip(),
+            'int main()\n{\n  int temp0;\n  int temp1;\n  CALLBACK_1;\n  CALLBACK_2;\n}'
+        )
+
+
+class TestFileAstTransformation(unittest.TestCase):
+    def test_apply_without_includes(self): 
+        transformation = FileAstTransformation(
+            fail, 
+            create_statement_callback()
+        )
+
+        src = '''
+            int main() { }
+        '''
+        input = parse(src)
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output).strip(),
+            'void notify(char *metadata, void *data);\nCALLBACK_1;'
+        )
+        
+
 class TestFlattenVisitor(unittest.TestCase):
     def _test_flatten_node(self, node, src_expr, src_variables):
         root = parse('void func() { }')
@@ -843,7 +917,6 @@ class TestNotifyCreator(unittest.TestCase):
 
         self.assertTrue(actual == expected1 or actual == expected2);
 
-    
 
 class TestNotifyVisitor(unittest.TestCase):
     def _test_notify_node(self, src, expected, times = 1):
