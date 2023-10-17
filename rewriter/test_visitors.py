@@ -38,6 +38,7 @@ def create_multiple_declarations():
 def create_identity_callback(): 
     def callback(node):
         return node
+    return callback
 
 # Produces [ID("CALLBACK_EXPR_1, CALLBACK_VALUE_1")], [ID("CALLBACK_EXPR_2, CALLBACK_VALUE_2")], ...
 def create_expression_callback():
@@ -383,9 +384,9 @@ class TestExpressionTypeVisitor(unittest.TestCase):
 # a transformation per note type
 class TestNodeTransformation(unittest.TestCase): 
     def test_apply_identity(self):
-        transformation = NodeTransformation(
-            fail, 
-            create_identity_callback())
+        transformation = NodeTransformation.create(
+            create_identity_callback()
+        )
 
         src = "\n".join([
             'int main()',
@@ -404,9 +405,9 @@ class TestNodeTransformation(unittest.TestCase):
         )
 
     def test_apply_return(self): 
-        transformation = NodeTransformation(
-            fail, 
-            create_expression_callback())
+        transformation = NodeTransformation.create(
+            create_expression_callback()
+        )
         
         input = c_ast.Return(c_ast.ID("a"))
         output = transformation.apply(input)
@@ -417,9 +418,9 @@ class TestNodeTransformation(unittest.TestCase):
         )
     
     def test_apply_for_loop(self): 
-        transformation = NodeTransformation(
-            fail, 
-            create_statement_callback())
+        transformation = NodeTransformation.create(
+            create_statement_callback()
+        )
         
         src = '''
             int main() {
@@ -439,9 +440,8 @@ class TestNodeTransformation(unittest.TestCase):
 
 class TestIdTransformation(unittest.TestCase):
     def test_apply_id(self):
-        transformation = IdTransformation(
-            lambda t: c_ast.ID("temp0"),
-            fail
+        transformation = IdTransformation.create(
+            lambda t: c_ast.ID("temp0")
         )
 
         input = c_ast.ID("a", data={ "expression-type": "int", "location": [0, 1, 2, 3] })
@@ -455,7 +455,7 @@ class TestIdTransformation(unittest.TestCase):
 
 class TestBinaryOpTransformation(unittest.TestCase): 
     def test_apply_left_right_constant(self): 
-        transformation = BinaryOpTransformation(
+        transformation = BinaryOpTransformation.create(
             lambda t: c_ast.ID("temp0"),
             fail
         )
@@ -473,7 +473,7 @@ class TestBinaryOpTransformation(unittest.TestCase):
         )
 
     def test_apply_right_constant(self): 
-        transformation = BinaryOpTransformation(
+        transformation = BinaryOpTransformation.create(
             lambda t: c_ast.ID("temp0"),
             create_expression_callback()
         )
@@ -493,7 +493,7 @@ class TestBinaryOpTransformation(unittest.TestCase):
         # temp0 = a, notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp1 = temp0 + 2, notify("a=eval;t=int;l=[0,1,2,3]", &temp1), temp1
 
     def test_apply_left_constant(self): 
-        transformation = BinaryOpTransformation(
+        transformation = BinaryOpTransformation.create(
             lambda t: c_ast.ID("temp0"),
             create_expression_callback()
         )
@@ -511,7 +511,7 @@ class TestBinaryOpTransformation(unittest.TestCase):
         )
 
     def test_apply_no_constants(self): 
-        transformation = BinaryOpTransformation(
+        transformation = BinaryOpTransformation.create(
             lambda t: c_ast.ID("temp0"),
             create_expression_callback()
         )
@@ -531,7 +531,7 @@ class TestBinaryOpTransformation(unittest.TestCase):
 
 class TestAssignmentTransformation(unittest.TestCase): 
     def test_apply_constant(self): 
-        transformation = AssignmentTransformation(
+        transformation = AssignmentTransformation.create(
             lambda t: c_ast.ID("temp0"),
             fail
         )
@@ -549,7 +549,7 @@ class TestAssignmentTransformation(unittest.TestCase):
         )
     
     def test_apply_non_constant(self): 
-        transformation = AssignmentTransformation(
+        transformation = AssignmentTransformation.create(
             lambda t: c_ast.ID("temp0"),
             create_expression_callback()
         )
@@ -569,7 +569,7 @@ class TestAssignmentTransformation(unittest.TestCase):
 
 class TestDeclTransformation(unittest.TestCase): 
     def test_apply_non_initialized(self): 
-        transformation = DeclTransformation(
+        transformation = DeclTransformation.create(
             lambda t: c_ast.ID("temp0"),
             fail
         )
@@ -590,7 +590,7 @@ class TestDeclTransformation(unittest.TestCase):
         )
 
     def test_apply_constant_initialized(self): 
-        transformation = DeclTransformation(
+        transformation = DeclTransformation.create(
             lambda t: c_ast.ID("temp0"),
             fail
         )
@@ -611,7 +611,7 @@ class TestDeclTransformation(unittest.TestCase):
         )
     
     def test_apply_non_constant_initialized(self): 
-        transformation = DeclTransformation(
+        transformation = DeclTransformation.create(
             lambda t: c_ast.ID("temp0"),
             create_expression_callback()
         )
@@ -634,8 +634,7 @@ class TestDeclTransformation(unittest.TestCase):
 
 class TestFuncDef(unittest.TestCase): 
     def test_apply_single_statement(self): 
-        transformation = FuncDefTransformation(
-            fail, 
+        transformation = FuncDefTransformation.create(
             create_single_declaration,
             create_statement_callback()
         )
@@ -655,8 +654,7 @@ class TestFuncDef(unittest.TestCase):
         )
 
     def test_apply_multiple_statement(self): 
-        transformation = FuncDefTransformation(
-            fail, 
+        transformation = FuncDefTransformation.create(
             create_multiple_declarations,
             create_statement_callback()
         )
@@ -679,8 +677,7 @@ class TestFuncDef(unittest.TestCase):
 
 class TestFileAstTransformation(unittest.TestCase):
     def test_apply_without_includes(self): 
-        transformation = FileAstTransformation(
-            fail, 
+        transformation = FileAstTransformation.create(
             create_method_callback()
         )
 

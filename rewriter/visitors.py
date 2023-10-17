@@ -215,15 +215,15 @@ class ExpressionTypeVisitor(c_ast.NodeVisitor):
 # - Statement transformations must return another statement
 # - Block transformations must return c_ast.Compound
 class BaseTransformation(): 
-    def __init__(self, createVariable: Callable, callback: Callable) -> None: 
-        self.createVariable: Callable|None = createVariable;
-        self.callback: Callable|None = callback;
-        self.getAndClearVariables: Callable|None;
+    def __init__(self) -> None:
+        self.pushVariable: Callable[[str], c_ast.Node]|None = None;
+        self.popVariables: Callable[[],list[c_ast.Node]]|None = None;
+        self.callback: Callable[[c_ast.Node], c_ast.Node]|None = None;
 
-    def isApplicable(node: c_ast.Node) -> bool: 
+    def isApplicable(self, node: c_ast.Node) -> bool: 
         raise Exception("isApplicable is not implemented")
     
-    def apply(node: c_ast.Node) -> c_ast.Node:
+    def apply(self, node: c_ast.Node) -> c_ast.Node:
         raise Exception("apply is not implemented")
 
 
@@ -244,6 +244,12 @@ class NodeTransformation(BaseTransformation):
             setattr(cloned_node, attribute[0], self.callback(attribute[1]))
 
         return cloned_node
+    
+    @staticmethod
+    def create(callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = NodeTransformation()
+        instance.callback = callback
+        return instance
 
 
 # Performs Id transformation
@@ -255,13 +261,19 @@ class IdTransformation(BaseTransformation):
     
     def apply(self, node: c_ast.Node) -> c_ast.ExprList:
         type = "constant"
-        temporaryVariable = self.createVariable(type)
+        temporaryVariable = self.pushVariable(type)
 
         return c_ast.ExprList([
             c_ast.Assignment('=', temporaryVariable, node),
             createNotifyFromExpr(node, temporaryVariable),
             temporaryVariable
         ])
+    
+    @staticmethod
+    def create(pushVariable: Callable[[str], c_ast.Node]):
+        instance = IdTransformation()
+        instance.pushVariable = pushVariable
+        return instance
 
 
 # Performs BinaryOp transformation
@@ -274,7 +286,7 @@ class BinaryOpTransformation(BaseTransformation):
     
     def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
         type = "constant"
-        temporaryVariable = self.createVariable(type)
+        temporaryVariable = self.pushVariable(type)
 
         buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
         buffer_right = list(self.callback(node.right)) if not isinstance(node.right, c_ast.Constant) else [node.right]
@@ -295,6 +307,13 @@ class BinaryOpTransformation(BaseTransformation):
         buffer.append(temporaryVariable)
 
         return c_ast.ExprList(buffer)
+    
+    @staticmethod
+    def create(pushVariable: Callable[[str], c_ast.Node], callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = BinaryOpTransformation()
+        instance.pushVariable = pushVariable
+        instance.callback = callback
+        return instance
 
 
 # Performs Assignment transformation
@@ -310,7 +329,7 @@ class AssignmentTransformation(BaseTransformation):
             raise Exception("Unsupported assigment: only id assignment allowed")
 
         type = "constant"
-        temporaryVariable = self.createVariable(type)
+        temporaryVariable = self.pushVariable(type)
 
         buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
         
@@ -329,6 +348,13 @@ class AssignmentTransformation(BaseTransformation):
         buffer.append(temporaryVariable)
 
         return c_ast.ExprList(buffer)
+    
+    @staticmethod
+    def create(pushVariable: Callable[[str], c_ast.Node], callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = AssignmentTransformation()
+        instance.pushVariable = pushVariable
+        instance.callback = callback
+        return instance
 
 
 # Performs Decl transformation
@@ -342,7 +368,7 @@ class DeclTransformation(BaseTransformation):
     def apply(self, node: c_ast.Decl) -> c_ast.Decl:
         # Only supports init
         type = "constant"
-        temporaryVariable = self.createVariable(type)
+        temporaryVariable = self.pushVariable(type)
 
         init = None
 
@@ -377,16 +403,19 @@ class DeclTransformation(BaseTransformation):
             node.bitsize,
             node.data
         )
+    
+    @staticmethod
+    def create(pushVariable: Callable[[str], c_ast.Node], callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = DeclTransformation()
+        instance.pushVariable = pushVariable
+        instance.callback = callback
+        return instance
 
 
 # Performs FuncDef transformation
 # int func () { int a = 5 * 5; }
 # int func () { int temp0; int a = (temp0 = 5 * 5, notify(...), temp0); }
 class FuncDefTransformation(BaseTransformation): 
-    def __init__(self, createVariable: Callable, popVariables: Callable, callback: Callable) -> None:
-        super().__init__(createVariable, callback)
-        self.popVariables: Callable = popVariables
-        
     def isApplicable(self, node: c_ast.Node) -> bool:
         return isinstance(node, c_ast.FuncDef)
     
@@ -404,6 +433,13 @@ class FuncDefTransformation(BaseTransformation):
             node.coord,
             node.data
         )
+    
+    @staticmethod
+    def create(popVariables: Callable[[],list[c_ast.Node]], callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = FuncDefTransformation()
+        instance.popVariables = popVariables
+        instance.callback = callback
+        return instance
 
 
 # Performs FileAst transformation 
@@ -422,6 +458,11 @@ class FileAstTransformation(BaseTransformation):
             node.data
         )
 
+    @staticmethod
+    def create(callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = FileAstTransformation()
+        instance.callback = callback
+        return instance
 
 # Used by FlattenVisitor
 class FlattenVisitor(c_ast.NodeVisitor):
