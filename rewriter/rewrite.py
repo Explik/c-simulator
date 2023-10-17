@@ -8,7 +8,7 @@ import os
 sys.path.extend(['.', '..'])
 
 from pycparser import c_parser, c_ast, parse_file, c_generator
-from visitors import FlattenVisitor, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FlattenVisitor, FuncDefTransformation, IdTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, TransformationVisitor
 
 def get_library_file_name(file_path): 
     file_path_components = os.path.split(file_path)
@@ -59,11 +59,18 @@ def start_rewrite(file_path1, file_path2):
     ExpressionTypeVisitor().visit(ast)
 
     # Rewrite root
-    FlattenVisitor().visit(ast)
-    NotifyVisitor(NotifyCreator()).visit(ast)
+    rewrittenAst = TransformationVisitor([
+        FileAstTransformation(),
+        FuncDefTransformation(),
+        DeclTransformation(),
+        AssignmentTransformation(),
+        BinaryOpTransformation(),
+        IdTransformation(),
+        NodeTransformation()
+    ]).visit(ast)
     
     generator = c_generator.CGenerator()
-    transformed_code = generator.visit(ast)
+    transformed_code = generator.visit(rewrittenAst)
 
     output_f = open(file_path2, "w")
     output_f.write(transformed_code)

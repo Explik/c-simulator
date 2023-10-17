@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Callable
 from inspect import getmembers, isroutine
 from pycparser import c_ast
-from visitors_helper import createNotifyDecl, createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
+from visitors_helper import createDecl, createNotifyDecl, createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
 
 
 # Metadata visitors
@@ -260,7 +260,7 @@ class IdTransformation(BaseTransformation):
         return isinstance(node, c_ast.ID)
     
     def apply(self, node: c_ast.Node) -> c_ast.ExprList:
-        type = "constant"
+        type = "int"
         temporaryVariable = self.pushVariable(type)
 
         return c_ast.ExprList([
@@ -285,7 +285,7 @@ class BinaryOpTransformation(BaseTransformation):
         return isinstance(node, c_ast.BinaryOp)
     
     def apply(self, node: c_ast.BinaryOp) -> c_ast.ExprList:
-        type = "constant"
+        type = "int"
         temporaryVariable = self.pushVariable(type)
 
         buffer_left = list(self.callback(node.left)) if not isinstance(node.left, c_ast.Constant) else [node.left]
@@ -328,7 +328,7 @@ class AssignmentTransformation(BaseTransformation):
         if not isinstance(node.lvalue, c_ast.ID):
             raise Exception("Unsupported assigment: only id assignment allowed")
 
-        type = "constant"
+        type = "int"
         temporaryVariable = self.pushVariable(type)
 
         buffer_rvalue = list(self.callback(node.rvalue)) if not isinstance(node.rvalue, c_ast.Constant) else [node.rvalue]
@@ -367,7 +367,7 @@ class DeclTransformation(BaseTransformation):
     
     def apply(self, node: c_ast.Decl) -> c_ast.Decl:
         # Only supports init
-        type = "constant"
+        type = "int"
         temporaryVariable = self.pushVariable(type)
 
         init = None
@@ -423,8 +423,9 @@ class FuncDefTransformation(BaseTransformation):
         if not(isinstance(node.body, c_ast.Compound)):
             raise Exception("Body is not compound")
 
+        body_statements = [self.callback(i) for i in node.body.block_items]
         body_buffer = self.popVariables()
-        body_buffer.extend([self.callback(i) for i in node.body.block_items])
+        body_buffer.extend(body_statements)
 
         return c_ast.FuncDef(
             node.decl,
@@ -463,6 +464,40 @@ class FileAstTransformation(BaseTransformation):
         instance = FileAstTransformation()
         instance.callback = callback
         return instance
+
+
+class TransformationVisitor(c_ast.NodeVisitor):
+    # Constructs instance 
+    # transformations - listed highest precedence to lowest precedence
+    def __init__(self, transformations: list[BaseTransformation]) -> None:
+        super().__init__()
+        
+        self.transformations: list[BaseTransformation] = transformations
+        self.variables: list[c_ast.Decl] = []
+
+        for transformation in self.transformations:
+            transformation.pushVariable = lambda t: self.pushVariable(t)
+            transformation.popVariables = lambda: self.popVariables()
+            transformation.callback = lambda n: self.visit(n)
+    
+    def pushVariable(self, type: str) -> c_ast.Node: 
+        variable_number = len(self.variables)
+        variable_name = f"temp{variable_number}"
+        self.variables.append(createDecl(type, variable_name)) 
+        return c_ast.ID(variable_name)
+
+    def popVariables(self) -> list[c_ast.Node]:
+        temp = self.variables
+        self.variables = []
+        return temp
+        
+    def visit(self, node):
+        transformation = next((t for t in self.transformations if t.isApplicable(node)), None)
+        if transformation is None:
+            raise Exception("No transformation is registered for " + node)
+        
+        return transformation.apply(node)
+
 
 # Used by FlattenVisitor
 class FlattenVisitor(c_ast.NodeVisitor):

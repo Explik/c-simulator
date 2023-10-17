@@ -1,5 +1,25 @@
 from pycparser import c_ast
 
+# Creates "type name;"
+def createDecl(type: str, name: str) -> c_ast.Decl:
+    type_node = c_ast.TypeDecl(
+        declname= name,
+        quals=[],
+        align=None,
+        type = c_ast.IdentifierType(names = [type])
+    )
+    return c_ast.Decl(
+        name=name, 
+        quals=[],
+        align=[],
+        storage=[],
+        funcspec=[],
+        type=type_node,
+        init=None,
+        bitsize=None
+    )
+
+
 # Creates "notify(str, &id)"
 def createNotify(metadata: str|list[str], identifier: c_ast.ID) -> c_ast.FuncCall:
     par1 = ";".join(metadata) if isinstance(metadata, list) else metadata
@@ -72,6 +92,7 @@ def createNotifyDecl() -> c_ast.Decl:
         ),
     )
 
+
 # Creates "notify("a=assign;...", &id)"
 def createNotifyFromAssigment(node: c_ast.Assignment, identifier: c_ast.ID) -> c_ast.FuncCall:
     type = node.data.get("expression-type")
@@ -92,7 +113,7 @@ def createNotifyFromAssigment(node: c_ast.Assignment, identifier: c_ast.ID) -> c
 
 # Creates "notify("a=decl;...", &id)"
 def createNotifyFromDecl(node: c_ast.Decl, identifier: c_ast.ID) -> c_ast.FuncCall:
-    type = node.data.get("expression-type")
+    type = node.type.type.names[0]
     
     if type == None: 
         raise Exception("Node is missing expression-type data")

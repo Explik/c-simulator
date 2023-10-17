@@ -1,11 +1,17 @@
 import unittest
 from pycparser import c_ast, c_generator
-from visitors_helper import createNotify
+from visitors_helper import createDecl, createNotify
 
 def stringify(node): 
    return c_generator.CGenerator().visit(node)
 
 class TestHelpers(unittest.TestCase):
+    def test_create_decl(self): 
+        decl_node = createDecl('int', 'abc')
+        decl_src = stringify(decl_node)
+
+        self.assertEqual(decl_src, "int abc")
+
     def test_create_notify_single(self):  
         notify_node = createNotify("t=int", c_ast.ID("id"))
         notify_src = stringify(notify_node)
