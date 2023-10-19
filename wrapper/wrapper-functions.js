@@ -1,9 +1,33 @@
 
 /**
  * @typedef SimulationStep
- * @property {string} type
+ * @property {string} action
  * 
  */
+
+// Based on https://stackoverflow.com/questions/40929260/find-last-index-of-element-inside-array-by-certain-condition
+function findLastIndex(array, predicate) {
+    let l = array.length;
+    while (l--) {
+        if (predicate(array[l], l, array))
+            return l;
+    }
+    return -1;
+}
+
+/**
+ * 
+ * @param {SimulationStep[]} steps 
+ * @param {"expression"} mode
+ * @returns {number}
+ */
+export function getFirstStep(steps, mode) {
+    if (mode !== "expression")
+        throw new error("Unsupported mode " + mode);
+
+    const index = steps.findIndex(s => s.action === "eval");
+    return (index !== -1) ? index : undefined;
+}
 
 /**
  * 
@@ -16,7 +40,8 @@ export function stepForward(steps, currentStep, mode) {
     if (mode !== "expression")
         throw new error("Unsupported mode " + mode);
 
-    return currentStep < steps.length - 1 ? currentStep + 1 : undefined;
+    const offset = steps.slice(currentStep + 1).findIndex(s => s.action === "eval");
+    return (offset !== -1) ? offset + currentStep + 1 : undefined;
 }
 
 /**
@@ -30,7 +55,8 @@ export function stepBackward(steps, currentStep, mode) {
     if (mode !== "expression")
         throw new error("Unsupported mode " + mode);
 
-    return currentStep > 0 ? currentStep - 1 : undefined;
+    const offset = steps.slice(0, currentStep).reverse().findIndex(s => s.action === "eval");
+    return (offset !== -1) ? currentStep - offset - 1 : undefined;
 }
 
 /**
@@ -42,7 +68,7 @@ export function getEvaluatedCode(code, steps) {
     // TODO implement clear for active-statement-change 
 
     // Filters out steps with encompased by other steps
-    const expressionSteps = steps.filter(s => s.type === "expression");
+    const expressionSteps = steps.filter(s => s.action === "eval");
     const activeExpressionSteps = expressionSteps.reduce(
         (steps, value) => [...steps.filter(s => !isLocationWithinLocation(s.location, value.location)), value],
         []
@@ -112,4 +138,4 @@ function getContentAfterLocation(code, location) {
     return lines[location[2] - 1].substring(location[3])
 }
 
-export default { stepForward, stepBackward, getEvaluatedCode }
+export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode }

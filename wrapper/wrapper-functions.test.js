@@ -1,11 +1,143 @@
 import assert from 'assert';
-import { stepForward, stepBackwards, getEvaluatedCode } from './wrapper-functions.js';
+import { stepForward, stepBackward, getEvaluatedCode, getFirstStep } from './wrapper-functions.js';
+
+describe("getFirstStep", function() {
+  it ('returns undefined when all steps are non-expression', function() {
+    const steps = [
+      { action: 'decl' },
+      { action: 'decl' },
+    ];
+    const actual = getFirstStep(steps, "expression");
+
+    assert.equal(actual, undefined);
+  });
+  it ('returns zero when first step is expression', function() {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' },
+    ];
+    const actual = getFirstStep(steps, "expression");
+
+    assert.equal(actual, 0);
+  });
+  it ('returns one when second step is expression', function() {
+    const steps = [
+      { action: 'decl' },
+      { action: 'eval' },
+    ];
+    const actual = getFirstStep(steps, "expression");
+
+    assert.equal(actual, 1);
+  });
+});
+
+describe('stepForward', function () {
+  it ('returns undefined when all next steps are non-expression', function() {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' }, // currentStep
+      { action: 'decl' },
+      { action: 'decl' },
+      { action: 'decl' }
+    ];
+    const actual = stepForward(steps, 1, 'expression');
+
+    assert.equal(actual, undefined);
+  });
+  it('skips none when the next step is expression', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' }, // currentStep
+      { action: 'eval' },
+      { action: 'eval' },
+      { action: 'eval' }
+    ];
+    const actual = stepForward(steps, 1, 'expression');
+
+    assert.equal(actual, 2);
+  });
+  it('skips one when the next step is declaration', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' }, // currentStep
+      { action: 'decl' },
+      { action: 'eval' },
+      { action: 'eval' }
+    ];
+    const actual = stepForward(steps, 1, 'expression');
+
+    assert.equal(actual, 3);
+  });
+  it('skips two when the two next steps are declarations ', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' }, // currentStep
+      { action: 'decl' },
+      { action: 'decl' },
+      { action: 'eval' }
+    ];
+    const actual = stepForward(steps, 1, 'expression');
+
+    assert.equal(actual, 4);
+  });
+});
+
+describe('stepBackward', function() {
+  it ('returns undefined when all previous steps are non-expression', function() {
+    const steps = [
+      { action: 'decl' },
+      { action: 'decl' },
+      { action: 'decl' },
+      { action: 'eval' }, // currentStep
+      { action: 'eval' }
+    ];
+    const actual = stepBackward(steps, 3, 'expression');
+
+    assert.equal(actual, undefined);
+  });
+  it('skips none when the next step is expression', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' },
+      { action: 'eval' },
+      { action: 'eval' }, // currentStep
+      { action: 'eval' }
+    ];
+    const actual = stepBackward(steps, 3, 'expression');
+
+    assert.equal(actual, 2);
+  });
+  it('skips one when the previous step is non-expression', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'eval' },
+      { action: 'decl' },
+      { action: 'eval' }, // currentStep
+      { action: 'eval' }
+    ];
+    const actual = stepBackward(steps, 3, 'expression');
+
+    assert.equal(actual, 1);
+  });
+  it('skips none when the two previous step is non-expression', function () {
+    const steps = [
+      { action: 'eval' },
+      { action: 'decl' },
+      { action: 'decl' },
+      { action: 'eval' }, // currentStep
+      { action: 'eval' }
+    ];
+    const actual = stepBackward(steps, 3, 'expression');
+
+    assert.equal(actual, 0);
+  });
+});
 
 describe('getEvaluatedCode', function () {
   it('replaces expression at beginning', function () {
     const code = "5 * 7 + 6;";
     const steps = [{
-      type: 'expression',
+      action: 'eval',
       dataType: "int",
       dataValue: 35,
       location: [1, 1, 1, 5]
@@ -18,7 +150,7 @@ describe('getEvaluatedCode', function () {
   it('replaces expression in middle', function () {
     const code = "f(5 * 7);";
     const steps = [{
-      type: 'expression',
+      action: 'eval',
       dataType: "int",
       dataValue: 35,
       location: [1, 3, 1, 7]
@@ -31,7 +163,7 @@ describe('getEvaluatedCode', function () {
   it('replaces expression in middle (multi-line)', function () {
     const code = "int main() {\n  return 5 * 7 + 6;\n}";
     const steps = [{
-      type: 'expression',
+      action: 'eval',
       dataType: "int",
       dataValue: 35,
       location: [2, 10, 2, 14]
@@ -44,7 +176,7 @@ describe('getEvaluatedCode', function () {
   it('replaces expression at end', function () {
     const code = "6 + 5 * 7;";
     const steps = [{
-      type: 'expression',
+      action: 'eval',
       dataType: "int",
       dataValue: 35,
       location: [1, 5, 1, 9]
@@ -58,12 +190,12 @@ describe('getEvaluatedCode', function () {
     const code = "5 * 7 + 6 * 3;";
     const steps = [
       {
-        type: 'expression',
+        action: 'eval',
         dataType: "int",
         dataValue: 35,
         location: [1, 1, 1, 5]
       }, {
-        type: 'expression',
+        action: 'eval',
         dataType: 'int',
         dataValue: 18,
         location: [1, 9, 1, 13]
@@ -78,12 +210,12 @@ describe('getEvaluatedCode', function () {
     const code = "int main() {\n  int i = 3 * 3;\n  return i;\n}";
     const steps = [
       {
-        type: 'expression',
+        action: 'eval',
         dataType: "int",
         dataValue: 9,
         location: [2, 11, 2, 15]
       }, {
-        type: 'expression',
+        action: 'eval',
         dataType: 'int',
         dataValue: 9,
         location: [3, 10, 3, 10]
@@ -98,12 +230,12 @@ describe('getEvaluatedCode', function () {
     const code = "int main() {\n  return 5 * 7 + 6 * 3;\n}";
     const steps = [
       {
-        type: 'expression',
+        action: 'eval',
         dataType: "int",
         dataValue: 35,
         location: [2, 10, 2, 14]
       }, {
-        type: 'expression',
+        action: 'eval',
         dataType: 'int',
         dataValue: 18,
         location: [2, 18, 2, 22]
@@ -118,13 +250,13 @@ describe('getEvaluatedCode', function () {
     const code = "5 * 7 + 6;";
     const steps = [
       {
-        type: 'expression',
+        action: 'eval',
         dataType: "int",
         dataValue: 35,
         location: [1, 1, 1, 5]
       },
       {
-        type: 'expression',
+        action: 'eval',
         dataType: "int",
         dataValue: 41,
         location: [1, 1, 1, 9]

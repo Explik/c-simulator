@@ -26,7 +26,7 @@ class Simulation {
             
             this.code = this.module.simulatorCode;
             this.allSteps = this.module.simulatorSteps;
-            this.currentStep = 0;
+            this.currentStep = functions.getFirstStep(this.allSteps, "expression");
         }
     }
 
