@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { stepForward, stepBackward, getEvaluatedCode, getFirstStep } from './wrapper-functions.js';
+import { stepForward, stepBackward, getEvaluatedCode, getFirstStep, getVariables } from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
   it ('returns undefined when all steps are non-expression', function() {
@@ -266,5 +266,108 @@ describe('getEvaluatedCode', function () {
     const actual = getEvaluatedCode(code, steps);
     const expected = "41;";
     assert.equal(actual, expected);
+  });
+});
+
+describe('getVariables', function() {
+  it ('returns variable as declared when not reassigned', function() {
+    const steps = [{
+      action: 'decl',
+      identifier: 'i',
+      dataType: 'int',
+      dataValue: 7
+    }];
+    const actual = getVariables(steps);
+    const expected = [{
+      identifier: 'i',
+      dataType: 'int',
+      dataValue: 7
+    }]
+    assert.deepEqual(actual, expected);
+  });
+  it('returns variables as declared when not reassigned', function () {
+    const steps = [
+      {
+        action: 'decl',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 7
+      },
+      {
+        action: 'decl',
+        identifier: 'j',
+        dataType: 'int',
+        dataValue: 8
+      }
+    ];
+    const actual = getVariables(steps);
+    const expected = [
+      {
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 7
+      },
+      {
+        identifier: 'j',
+        dataType: 'int',
+        dataValue: 8
+      }
+    ];
+
+    assert.deepEqual(actual, expected);
+  });
+  it('returns variable as assigned when reassigned once', function () {
+    const steps = [
+      {
+        action: 'decl',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 7
+      },
+      {
+        action: 'assign',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 8
+      }
+    ];
+    const actual = getVariables(steps);
+    const expected = [{
+      identifier: 'i',
+      dataType: 'int',
+      dataValue: 8
+    }];
+
+    assert.deepEqual(actual, expected);
+  });
+  it('returns variable as assigned when reassigned multiple times', function () {
+    const steps = [
+      {
+        action: 'decl',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 7
+      },
+      {
+        action: 'assign',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 8
+      },
+      {
+        action: 'assign',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 9
+      }
+    ];
+    const actual = getVariables(steps);
+    const expected = [{
+      identifier: 'i',
+      dataType: 'int',
+      dataValue: 9
+    }];
+
+    assert.deepEqual(actual, expected);
   });
 });

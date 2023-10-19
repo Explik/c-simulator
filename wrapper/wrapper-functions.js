@@ -138,4 +138,25 @@ function getContentAfterLocation(code, location) {
     return lines[location[2] - 1].substring(location[3])
 }
 
-export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode }
+/**
+ * Returns list of declared variables with current value
+ * @param {SimulationStep[]} steps 
+ * @returns { identifier: string,  dataType: string, dataValue: object }
+ */
+export function getVariables(steps) {
+    const declarations = steps.filter(s => s.action == 'decl');
+    const assignments = steps.filter(s => s.action == "assign");
+
+    return declarations.map(d => {
+        const lastAssignment = assignments.reverse().find(s => s.identifier == d.identifier);
+        const currentValue = lastAssignment ?? d;
+
+        return {
+            identifier: d.identifier,
+            dataType: d.dataType,
+            dataValue: currentValue.dataValue
+        };
+    });
+}   
+
+export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getVariables }
