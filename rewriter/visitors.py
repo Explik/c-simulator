@@ -344,7 +344,8 @@ class AssignmentTransformation(BaseTransformation):
                 buffer_rvalue[-1]
             )
         ))
-        buffer.append(createNotifyFromAssigment(node, temporaryVariable))
+        buffer.append(createNotifyFromAssigment(node, node.lvalue))
+        buffer.append(createNotifyFromExpr(node, temporaryVariable))
         buffer.append(temporaryVariable)
 
         return c_ast.ExprList(buffer)

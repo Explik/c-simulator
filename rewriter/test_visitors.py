@@ -545,7 +545,7 @@ class TestAssignmentTransformation(unittest.TestCase):
 
         self.assertEqual(
             stringify(output), 
-            'temp0 = (a = 123), notify("a=assign;t=int;i=a", &temp0), temp0'
+            'temp0 = (a = 123), notify("a=assign;t=int;i=a", &a), notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
         )
     
     def test_apply_non_constant(self): 
@@ -563,7 +563,7 @@ class TestAssignmentTransformation(unittest.TestCase):
 
         self.assertEqual(
             stringify(output), 
-            'CALLBACK_EXPR_1, temp0 = (a = CALLBACK_VALUE_1), notify("a=assign;t=int;i=a", &temp0), temp0'
+            'CALLBACK_EXPR_1, temp0 = (a = CALLBACK_VALUE_1), notify("a=assign;t=int;i=a", &a), notify("a=eval;t=int;l=[0,1,2,3]", &temp0), temp0'
         )
 
 
