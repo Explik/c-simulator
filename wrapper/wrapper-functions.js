@@ -65,10 +65,10 @@ export function stepBackward(steps, currentStep, mode) {
  * @param {SimulationStep[]} steps 
  */
 export function getEvaluatedCode(code, steps) {
-    // TODO implement clear for active-statement-change 
-
     // Filters out steps with encompased by other steps
-    const expressionSteps = steps.filter(s => s.action === "eval");
+    const lastStatementIndex = steps.findLastIndex(s => s.action === "stat");
+    const lastStatementSteps = lastStatementIndex !== -1 ? steps.slice(lastStatementIndex) : steps;
+    const expressionSteps = lastStatementSteps.filter(s => s.action === "eval");
     const activeExpressionSteps = expressionSteps.reduce(
         (steps, value) => [...steps.filter(s => !isLocationWithinLocation(s.location, value.location)), value],
         []
@@ -119,7 +119,7 @@ function getContentWithinLocation(code, location) {
     if (location[0] != location[2]) {
         return [
             lines[location[0] - 1].substring(location[1] - 1),
-            ...lines.filter((_, i) => location[0] + 1 < i && i < location[2] - 1),
+            ...lines.filter((_, i) => location[0] <= i && i < location[2] - 1),
             lines[location[2] - 1].substring(0, location[3] - 1)
         ].join("\n");
     }

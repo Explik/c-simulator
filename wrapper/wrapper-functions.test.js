@@ -267,6 +267,30 @@ describe('getEvaluatedCode', function () {
     const expected = "41;";
     assert.equal(actual, expected);
   });
+  it('replaces expression after statement', function() {
+    const code = "5 * 7; 6 * 3;";
+    const steps = [
+      {
+        action: 'eval',
+        dataType: "int",
+        dataValue: 35,
+        location: [1, 1, 1, 5]
+      },
+      { 
+        action: 'stat' 
+      },
+      {
+        action: 'eval',
+        dataType: 'int',
+        dataValue: 18,
+        location: [1, 8, 1, 12]
+      }
+    ];
+
+    const actual = getEvaluatedCode(code, steps);
+    const expected = "5 * 7; 18;";
+    assert.equal(actual, expected);
+  });
 });
 
 describe('getVariables', function() {
