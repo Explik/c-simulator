@@ -259,6 +259,7 @@ class NodeTransformation(BaseTransformation):
 class StatementTranformation(NodeTransformation):
     def isApplicable(self, node: c_ast.Node) -> bool:
         supported_types = [
+            c_ast.If,
             c_ast.Return
         ]
         return type(node) in supported_types

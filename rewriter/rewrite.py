@@ -8,7 +8,7 @@ import os
 sys.path.extend(['.', '..'])
 
 from pycparser import c_parser, c_ast, parse_file, c_generator
-from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FlattenVisitor, FuncDefTransformation, IdTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, TransformationVisitor
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FlattenVisitor, FuncDefTransformation, IdTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, StatementTranformation, TransformationVisitor
 
 def get_library_file_name(file_path): 
     file_path_components = os.path.split(file_path)
@@ -66,6 +66,7 @@ def start_rewrite(file_path1, file_path2):
         AssignmentTransformation(),
         BinaryOpTransformation(),
         IdTransformation(),
+        StatementTranformation(),
         NodeTransformation()
     ]).visit(ast)
     

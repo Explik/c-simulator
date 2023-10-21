@@ -23,7 +23,7 @@ def createDecl(type: str, name: str) -> c_ast.Decl:
 # identifier - ID node translates to &id and None translates to null
 def createNotify(metadata: str|list[str], identifier: c_ast.ID|None) -> c_ast.FuncCall:
     par1 = ";".join(metadata) if isinstance(metadata, list) else metadata
-    par2 = c_ast.UnaryOp("&", identifier) if identifier != None else c_ast.Constant("void*", "null");
+    par2 = c_ast.UnaryOp("&", identifier) if identifier != None else c_ast.Constant("void*", "0");
 
 
     return c_ast.FuncCall(
