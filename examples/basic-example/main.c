@@ -1,5 +1,13 @@
 int main() {
-   int i = 5; 
-   int j = i + 1 < 5 && i > 6;
-   return i + j;
+   int i = 331 + 1 + 1; 
+   int j = (i + 1 < 5 && i);
+   int k = i + j;
+
+   //if (i == 333) 
+   //   i = 334;
+
+   if (i = 333) 
+      i = 334;
+
+   return k + 89;
 }
