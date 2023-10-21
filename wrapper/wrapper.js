@@ -26,19 +26,19 @@ class Simulation {
             
             this.code = this.module.simulatorCode;
             this.allSteps = this.module.simulatorSteps;
-            this.currentStep = functions.getFirstStep(this.allSteps, "expression");
+            this.currentStep = 0;
         }
     }
 
     stepForward(mode) {
         let nextStep = functions.stepForward(this.allSteps, this.currentStep, mode || "expression");
-        if (nextStep) this.currentStep = nextStep;
+        if (nextStep !== undefined) this.currentStep = nextStep;
         return !!nextStep;
     }
 
     stepBackward(mode) {
         let previousStep = functions.stepBackward(this.allSteps, this.currentStep, mode || "expression");
-        if (previousStep) this.currentStep = previousStep;
+        this.currentStep = previousStep ?? 0;
         return !!previousStep;
     }
 

@@ -78,7 +78,7 @@ export function getEvaluatedCode(code, steps) {
         (s1, s2) => (s1.location[0] == s2.location[0]) ?  s1.location[1] - s2.location[1] : s1.location[0] - s2.location[0]
     );
 
-    return getEvaluatedCodeInternal(code, activeExpressionSteps);
+    return activeExpressionSteps.length ? getEvaluatedCodeInternal(code, activeExpressionSteps) : code;
 }
 
 // Calculates evaluated code from a list of ordered non-overlapping steps
