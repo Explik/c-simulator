@@ -28,6 +28,20 @@
     <script>
         var simulation;
 
+        document.onkeydown = function(e) {
+            e = e || window.event;
+
+            if (e.keyCode == '37') {
+                // left arrow
+                stepBackward();
+            }
+            else if (e.keyCode == '39') {
+                // right arrow
+                stepForward();
+            }
+            e.preventDefault();
+        }
+
         Module.onRuntimeInitialized = function() { 
             simulation = Simulation.create(Module);
             simulation.run();
