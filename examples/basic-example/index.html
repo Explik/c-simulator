@@ -6,7 +6,10 @@
     <title>Basic example Example</title>
 </head>
 <body style="max-width: 500px;">
-    <pre><code id="evaluated-code" class="language-c"></code></pre>
+    <div>
+        <div><pre><code id="evaluated-code" class="language-c"></code></pre></div>
+        <div style="position: absolute; top:14px; left:14px; color:rgba(34, 34, 200, 0.3)"><pre id="highlighted-code">██████</pre></div>
+    </div>
     <table id="variables" class="table table-dark"></table>
     <button onclick="stepBackward()">Previous</button>
     <button onclick="stepForward()">Next</button>
@@ -45,6 +48,9 @@
             console.log(simulation.getEvaluatedCode());
             document.getElementById("evaluated-code").innerHTML = simulation.getEvaluatedCode();
             hljs.highlightAll();
+
+            // Update highlight mask
+            document.getElementById('highlighted-code').innerHTML = simulation.getHighlightedCode();
 
             // Update variables 
             var headerRow = "<tr><td>Variable</td><td>Type</td><td>Value</td>";

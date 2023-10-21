@@ -270,7 +270,7 @@ class StatementTranformation(NodeTransformation):
         for attribute in attributes: 
             attribute_value = self.callback(attribute[1])
             if isinstance(attribute_value, c_ast.ExprList):
-                attribute_value.exprs.insert(0, createNotifyFromStat(node))
+                attribute_value.exprs.insert(0, createNotifyFromStat(attribute[1]))
             setattr(cloned_node, attribute[0], attribute_value)
         return cloned_node
 
@@ -279,6 +279,7 @@ class StatementTranformation(NodeTransformation):
         instance = StatementTranformation()
         instance.callback = callback
         return instance
+
 
 # Performs Id transformation
 # a

@@ -138,6 +138,32 @@ function getContentAfterLocation(code, location) {
     return lines[location[2] - 1].substring(location[3])
 }
 
+export function getHighlightedCode(code, steps) {
+    const lastStatementIndex = steps.findLastIndex(s => s.action === "stat");
+    if (lastStatementIndex === -1) return '';
+    const lastStatement = steps[lastStatementIndex];
+    const location = lastStatement.location;
+
+    const evaluatedCode = getEvaluatedCode(code, steps);
+    const lines = evaluatedCode.split('\n');
+    
+    const create = (n, v) => Array.from({length: n}, () => v).join(''); 
+    const createLines = (n) => Array.from({length: n}, () => '');
+
+    if (location[0] === location[2]) {
+        const numberOfPrecedingLines = Math.max(0, location[0] - 1);
+        const numberOfSucceedingLines = Math.max(0, lines.length - location[2]);
+        const numberOfSquares = lines[location[2] - 1].length;
+
+        return [
+            ...createLines(numberOfPrecedingLines),
+            create(numberOfSquares, '█'), 
+            ...createLines(numberOfSucceedingLines),
+        ].join("\n"); 
+    }
+    else throw new Error("Multi-line highlight is not supported");    
+}
+
 /**
  * Returns list of declared variables with current value
  * @param {SimulationStep[]} steps 
@@ -159,4 +185,4 @@ export function getVariables(steps) {
     });
 }   
 
-export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getVariables }
+export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getHighlightedCode, getVariables }

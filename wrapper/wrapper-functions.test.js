@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { stepForward, stepBackward, getEvaluatedCode, getFirstStep, getVariables } from './wrapper-functions.js';
+import { stepForward, stepBackward, getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode } from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
   it ('returns undefined when all steps are non-expression', function() {
@@ -289,6 +289,20 @@ describe('getEvaluatedCode', function () {
 
     const actual = getEvaluatedCode(code, steps);
     const expected = "5 * 7; 18;";
+    assert.equal(actual, expected);
+  });
+});
+
+describe('getHighlightedCode', function () {
+  it('highlights expression in middle (multi-line)', function () {
+    const code = "int main() {\n  return 5 * 7 + 6;\n}";
+    const steps = [{
+      action: 'stat',
+      location: [2, 3, 2, 14]
+    }];
+
+    const actual = getHighlightedCode(code, steps);
+    const expected = "\n███████████████████\n";
     assert.equal(actual, expected);
   });
 });
