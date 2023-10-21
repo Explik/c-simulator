@@ -1,7 +1,7 @@
 import unittest
 import re
 from pycparser import c_ast, c_parser, c_generator
-from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, FuncDefTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation
+from visitors import AssignmentTransformation, BinaryOpTransformation, DeclTransformation, FileAstTransformation, FindVisitor, ConstantNotifyInfoCreator, FlattenVisitor, FuncDefTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, IdTransformation, StatementTranformation
 
 def parse(src): 
     parser = c_parser.CParser(
@@ -142,7 +142,7 @@ class TestLocationVisitor(unittest.TestCase):
         start_line = text.count('\n', 0, start_index) + 1
         start_col = start_index - text.rfind('\n', 0, start_index)
         end_line = text.count('\n', 0, end_index) + 1
-        end_col = end_index - text.rfind('\n', 0, end_index)
+        end_col = end_index - text.rfind('\n', 0, end_index) - 1
         return [start_line, start_col, end_line, end_col]
 
     def _test_location(self, root_src, node_src, node_type, skip_substrings = 0, skip_nodes = 0): 
@@ -438,6 +438,22 @@ class TestNodeTransformation(unittest.TestCase):
         )
 
 
+class TestStatementTransformation(unittest.TestCase):
+    def test_apply_return(self): 
+        transformation = StatementTranformation.create(
+            create_expression_callback()
+        )
+        
+        input = c_ast.Return(c_ast.ID("a"))
+        input.data = { "location": [1, 2, 3, 4] }
+        output = transformation.apply(input)
+
+        self.assertEqual(
+            stringify(output), 
+            'return notify("a=stat;l=[1,2,3,4]", null), CALLBACK_EXPR_1, CALLBACK_VALUE_1;'
+        )
+    
+
 class TestIdTransformation(unittest.TestCase):
     def test_apply_id(self):
         transformation = IdTransformation.create(
@@ -581,12 +597,12 @@ class TestDeclTransformation(unittest.TestCase):
         '''
         root = parse(src)
         input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
-        input.data = { "expression-type": "int" }
+        input.data = { "expression-type": "int", "location": [1,2,3,4] }
         output = transformation.apply(input)
 
         self.assertEqual(
             stringify(output), 
-            'int abc = (notify("a=decl;t=int;i=abc", &temp0), temp0)'
+            'int abc = (notify("a=stat;l=[1,2,3,4]", null), notify("a=decl;t=int;i=abc", &temp0), temp0)'
         )
 
     def test_apply_constant_initialized(self): 
@@ -602,12 +618,12 @@ class TestDeclTransformation(unittest.TestCase):
         '''
         root = parse(src)
         input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
-        input.data = { "expression-type": "int" }
+        input.data = { "expression-type": "int", "location": [1,2,3,4] }
         output = transformation.apply(input)
 
         self.assertEqual(
             stringify(output), 
-            'int abc = (temp0 = 5, notify("a=decl;t=int;i=abc", &temp0), temp0)'
+            'int abc = (notify("a=stat;l=[1,2,3,4]", null), temp0 = 5, notify("a=decl;t=int;i=abc", &temp0), temp0)'
         )
     
     def test_apply_non_constant_initialized(self): 
@@ -623,12 +639,12 @@ class TestDeclTransformation(unittest.TestCase):
         '''
         root = parse(src)
         input = find_node_of_type(root, c_ast.Decl, skip_matches=1)
-        input.data = { "expression-type": "int" }
+        input.data = { "expression-type": "int", "location": [1,2,3,4] }
         output = transformation.apply(input)
 
         self.assertEqual(
             stringify(output), 
-            'int abc = (CALLBACK_EXPR_1, temp0 = CALLBACK_VALUE_1, notify("a=decl;t=int;i=abc", &temp0), temp0)'
+            'int abc = (notify("a=stat;l=[1,2,3,4]", null), CALLBACK_EXPR_1, temp0 = CALLBACK_VALUE_1, notify("a=decl;t=int;i=abc", &temp0), temp0)'
         )
 
 

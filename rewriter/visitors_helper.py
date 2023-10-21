@@ -19,17 +19,19 @@ def createDecl(type: str, name: str) -> c_ast.Decl:
         bitsize=None
     )
 
-
 # Creates "notify(str, &id)"
-def createNotify(metadata: str|list[str], identifier: c_ast.ID) -> c_ast.FuncCall:
+# identifier - ID node translates to &id and None translates to null
+def createNotify(metadata: str|list[str], identifier: c_ast.ID|None) -> c_ast.FuncCall:
     par1 = ";".join(metadata) if isinstance(metadata, list) else metadata
+    par2 = c_ast.UnaryOp("&", identifier) if identifier != None else c_ast.Constant("void*", "null");
+
 
     return c_ast.FuncCall(
         name=c_ast.ID("notify"),
         args=c_ast.ExprList(
             exprs=[
                 c_ast.Constant(type="string", value=f'"{par1}"'),
-                c_ast.UnaryOp("&", identifier),
+                par2,
             ]
         ),
     )
@@ -148,3 +150,19 @@ def createNotifyFromExpr(node: c_ast.Node, identifier: c_ast.ID) -> c_ast.FuncCa
     )
 
 
+# Creates "notify("a=state;...", null)"
+def createNotifyFromStat(node: c_ast.Node) -> c_ast.Node:
+    location = node.data.get("location")
+    
+    if type == None: 
+        raise Exception("Node is missing expression-type data")
+    if location == None:
+        raise Exception("Node is missing location data")
+
+    return createNotify(
+        [
+            "a=stat",
+            "l=[%s,%s,%s,%s]" % (location[0], location[1], location[2], location[3])
+        ],
+        None
+    )

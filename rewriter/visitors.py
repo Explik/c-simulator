@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Callable
 from inspect import getmembers, isroutine
 from pycparser import c_ast
-from visitors_helper import createDecl, createNotifyDecl, createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr
+from visitors_helper import createDecl, createNotifyDecl, createNotifyFromAssigment, createNotifyFromDecl, createNotifyFromExpr, createNotifyFromStat
 
 
 # Metadata visitors
@@ -234,16 +234,19 @@ class NodeTransformation(BaseTransformation):
         return isinstance(node, c_ast.Node)
 
     def apply(self, node: c_ast.Node) -> c_ast.Node:
+        attributes = self.__getattributes__(node)
+        cloned_node = deepcopy(node)
+        for attribute in attributes: 
+            setattr(cloned_node, attribute[0], self.callback(attribute[1]))
+        return cloned_node
+    
+    def __getattributes__(self, node: c_ast.Node) -> list[any]:
         all_attributes = getmembers(node, lambda a: not(isroutine(a)))
         public_attributes = [a for a in all_attributes if not(a[0].startswith('__') and a[0].endswith('__'))]
         node_attributes = [a for a in public_attributes if isinstance(a[1], c_ast.Node)]
         non_constant_attributes = [a for a in node_attributes if not(isinstance(a[1], c_ast.Constant))]
         
-        cloned_node = deepcopy(node)
-        for attribute in non_constant_attributes: 
-            setattr(cloned_node, attribute[0], self.callback(attribute[1]))
-
-        return cloned_node
+        return non_constant_attributes
     
     @staticmethod
     def create(callback: Callable[[c_ast.Node], c_ast.Node]):
@@ -251,6 +254,30 @@ class NodeTransformation(BaseTransformation):
         instance.callback = callback
         return instance
 
+
+# Performs replace of all attributes of statement nodes 
+class StatementTranformation(NodeTransformation):
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        supported_types = [
+            c_ast.Return
+        ]
+        return type(node) in supported_types
+    
+    def apply(self, node: c_ast.Node) -> c_ast.Node:
+        attributes = self.__getattributes__(node)
+        cloned_node = deepcopy(node)
+        for attribute in attributes: 
+            attribute_value = self.callback(attribute[1])
+            if isinstance(attribute_value, c_ast.ExprList):
+                attribute_value.exprs.insert(0, createNotifyFromStat(node))
+            setattr(cloned_node, attribute[0], attribute_value)
+        return cloned_node
+
+    @staticmethod
+    def create(callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = StatementTranformation()
+        instance.callback = callback
+        return instance
 
 # Performs Id transformation
 # a
@@ -375,18 +402,21 @@ class DeclTransformation(BaseTransformation):
 
         if node.init == None: 
             init = c_ast.ExprList([
+                createNotifyFromStat(node),
                 createNotifyFromDecl(node, temporaryVariable),
                 temporaryVariable
             ])
         elif isinstance(node.init, c_ast.Constant):
             init = c_ast.ExprList([
+                createNotifyFromStat(node),
                 c_ast.Assignment('=', temporaryVariable, node.init),
                 createNotifyFromDecl(node, temporaryVariable),
                 temporaryVariable
             ])
         else:
             callback_init = list(self.callback(node.init)) 
-            buffer_init = callback_init[:-1]
+            buffer_init = [createNotifyFromStat(node)]
+            buffer_init.extend(callback_init[:-1])
             buffer_init.append(c_ast.Assignment('=', temporaryVariable, callback_init[-1]))
             buffer_init.append(createNotifyFromDecl(node,temporaryVariable))
             buffer_init.append(temporaryVariable)
