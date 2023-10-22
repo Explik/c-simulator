@@ -286,7 +286,7 @@ class StatementTranformation(NodeTransformation):
 # (temp0 = a, notify(...), temp0)
 class IdTransformation(BaseTransformation):
     def isApplicable(self, node: c_ast.Node) -> bool:
-        return isinstance(node, c_ast.ID)
+        return isinstance(node, c_ast.ID) and node.name != "printf";
     
     def apply(self, node: c_ast.Node) -> c_ast.ExprList:
         type = "int"

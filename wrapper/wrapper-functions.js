@@ -165,6 +165,17 @@ export function getHighlightedCode(code, steps) {
 }
 
 /**
+ * Returns 
+ * @param {SimulationStep[]} steps 
+ */
+export function getOutput(steps) {
+    return steps
+        .filter(s => s.action === "stdout")
+        .map(s => s.value)
+        .join("");
+}
+
+/**
  * Returns list of declared variables with current value
  * @param {SimulationStep[]} steps 
  * @returns { identifier: string,  dataType: string, dataValue: object }
@@ -185,4 +196,4 @@ export function getVariables(steps) {
     });
 }   
 
-export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getHighlightedCode, getVariables }
+export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables }

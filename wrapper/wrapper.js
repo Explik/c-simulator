@@ -54,6 +54,11 @@ class Simulation {
         return functions.getHighlightedCode(this.code, this.allSteps.slice(0, this.currentStep + 1)); 
     }
 
+    getOutput() {
+        const prefix = "> program.exe\n";
+        return prefix + functions.getOutput(this.allSteps.slice(0, this.currentStep + 1))
+    }
+
     getVariables() {
         return functions.getVariables(this.allSteps.slice(0, this.currentStep + 1))
     }

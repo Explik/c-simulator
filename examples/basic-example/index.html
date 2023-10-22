@@ -10,6 +10,7 @@
         <div><pre><code id="evaluated-code" class="language-c"></code></pre></div>
         <div style="position: absolute; top:14px; left:14px; color:rgba(34, 34, 200, 0.3)"><pre id="highlighted-code">██████</pre></div>
     </div>
+    <div><pre id="stdout" style="padding:16px;background:#333;color:lightgreen;"></pre></div>
     <table id="variables" class="table table-dark"></table>
     <button onclick="stepBackward()">Previous</button>
     <button onclick="stepForward()">Next</button>
@@ -58,18 +59,29 @@
         }
         function updateCode() {
             // Update code sample
-            console.log("Evaluated simulator code: ");
-            console.log(simulation.getEvaluatedCode());
-            document.getElementById("evaluated-code").innerHTML = simulation.getEvaluatedCode();
+            document.getElementById("evaluated-code").innerHTML = escapeHtml(simulation.getEvaluatedCode());
             hljs.highlightAll();
 
             // Update highlight mask
             document.getElementById('highlighted-code').innerHTML = simulation.getHighlightedCode();
 
+            // Update output
+            document.getElementById("stdout").innerHTML = escapeHtml(simulation.getOutput());
+
             // Update variables 
             var headerRow = "<tr><td>Variable</td><td>Type</td><td>Value</td>";
             var dataRows = simulation.getVariables().map(v => `<tr><td>${v.identifier}</td><td>${v.dataType}</td><td>${v.dataValue}</td></tr>`);
             document.getElementById("variables").innerHTML = `<thead>${headerRow}</thead><tbody>${dataRows}</tbody>`;
+        }
+
+        function escapeHtml(unsafe)
+        {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 </script>
 
