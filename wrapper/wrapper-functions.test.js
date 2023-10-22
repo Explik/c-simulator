@@ -408,4 +408,28 @@ describe('getVariables', function() {
 
     assert.deepEqual(actual, expected);
   });
+  it('returns last declaration', function () {
+    const steps = [
+      {
+        action: 'decl',
+        identifier: 'i',
+        dataType: 'int',
+        dataValue: 7
+      },
+      {
+        action: 'decl',
+        identifier: 'i',
+        dataType: 'double',
+        dataValue: 8
+      }
+    ];
+    const actual = getVariables(steps);
+    const expected = [{
+      identifier: 'i',
+      dataType: 'double',
+      dataValue: 8
+    }];
+
+    assert.deepEqual(actual, expected);
+  });
 });

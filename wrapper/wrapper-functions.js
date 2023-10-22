@@ -15,6 +15,14 @@ function findLastIndex(array, predicate) {
     return -1;
 }
 
+// Based on https://stackoverflow.com/questions/14446511/most-efficient-method-to-groupby-on-an-array-of-objects
+var groupBy = function(xs, key) {
+    return xs.reduce(function(rv, x) {
+      (rv[x[key]] = rv[x[key]] || []).push(x);
+      return rv;
+    }, {});
+  };
+
 /**
  * 
  * @param {SimulationStep[]} steps 
@@ -184,7 +192,13 @@ export function getVariables(steps) {
     const declarations = steps.filter(s => s.action == 'decl');
     const assignments = steps.filter(s => s.action == "assign");
 
-    return declarations.map(d => {
+    const groupedDeclarations = groupBy(declarations, 'identifier');
+    const lastDeclarations = Object.keys(groupedDeclarations).map(k => {
+        const value = groupedDeclarations[k];
+        return value[value.length - 1];
+    });
+    
+    return lastDeclarations.map(d => {
         const lastAssignment = assignments.reverse().find(s => s.identifier == d.identifier);
         const currentValue = lastAssignment ?? d;
 
