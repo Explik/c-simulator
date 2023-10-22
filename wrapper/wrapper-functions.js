@@ -199,7 +199,7 @@ export function getVariables(steps) {
     });
     
     return lastDeclarations.map(d => {
-        const lastAssignment = assignments.reverse().find(s => s.identifier == d.identifier);
+        const lastAssignment = [...assignments].reverse().find(s => s.identifier == d.identifier);
         const currentValue = lastAssignment ?? d;
 
         return {
