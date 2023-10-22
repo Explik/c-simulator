@@ -199,7 +199,7 @@ class ExpressionTypeVisitor(c_ast.NodeVisitor):
         if node.op in ['==', '!=', '<', '<=', '>', '>=', '&&']: 
             node.data[self.property_name] = 'int'
         
-        if node.op in ['+', '*']:
+        if node.op in ['+', '-', '*', '/']:
             if node.left.data[self.property_name] == node.right.data[self.property_name]:
                  node.data[self.property_name] = node.left.data[self.property_name]
 
@@ -234,17 +234,21 @@ class NodeTransformation(BaseTransformation):
         return isinstance(node, c_ast.Node)
 
     def apply(self, node: c_ast.Node) -> c_ast.Node:
-        attributes = self.__getattributes__(node)
+        attributes = self.__getattributes__(node, True)
         cloned_node = deepcopy(node)
         for attribute in attributes: 
-            setattr(cloned_node, attribute[0], self.callback(attribute[1]))
+            attribute_value = attribute[1]
+            new_attribute_value = [self.callback(i) for i in attribute_value] if isinstance(attribute_value, list) else self.callback(attribute)
+            setattr(cloned_node, attribute[0], new_attribute_value)
         return cloned_node
     
-    def __getattributes__(self, node: c_ast.Node) -> list[any]:
+    def __getattributes__(self, node: c_ast.Node, include_lists=False) -> list[any]:
         all_attributes = getmembers(node, lambda a: not(isroutine(a)))
         public_attributes = [a for a in all_attributes if not(a[0].startswith('__') and a[0].endswith('__'))]
         node_attributes = [a for a in public_attributes if isinstance(a[1], c_ast.Node)]
-        non_constant_attributes = [a for a in node_attributes if not(isinstance(a[1], c_ast.Constant))]
+        node_list_attributes = [a for a in public_attributes if isinstance(a[1], list) and len(a[1]) > 0 and isinstance(a[1][0], c_ast.Node)]
+        all_node_attributes = node_attributes + node_list_attributes if include_lists else node_attributes
+        non_constant_attributes = [a for a in all_node_attributes if not(isinstance(a[1], c_ast.Constant))]
         
         return non_constant_attributes
     
@@ -259,6 +263,7 @@ class NodeTransformation(BaseTransformation):
 class StatementTranformation(NodeTransformation):
     def isApplicable(self, node: c_ast.Node) -> bool:
         supported_types = [
+            c_ast.For,
             c_ast.If,
             c_ast.Return
         ]
@@ -277,6 +282,27 @@ class StatementTranformation(NodeTransformation):
     @staticmethod
     def create(callback: Callable[[c_ast.Node], c_ast.Node]):
         instance = StatementTranformation()
+        instance.callback = callback
+        return instance
+
+
+# Performs replacement of all block items
+class CompoundTransformation(BaseTransformation): 
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.Compound)
+    
+    def apply(self, node: c_ast.Compound) -> c_ast.Compound:
+        buffer_block_items = [self.callback(n) for n in node.block_items]
+
+        return c_ast.Compound(
+            buffer_block_items,
+            node.coord,
+            node.data
+        )
+    
+    @staticmethod
+    def create(callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = CompoundTransformation()
         instance.callback = callback
         return instance
 
@@ -382,6 +408,35 @@ class AssignmentTransformation(BaseTransformation):
     @staticmethod
     def create(pushVariable: Callable[[str], c_ast.Node], callback: Callable[[c_ast.Node], c_ast.Node]):
         instance = AssignmentTransformation()
+        instance.pushVariable = pushVariable
+        instance.callback = callback
+        return instance
+
+
+# Performs FuncCall tranformation (only supports void functions)
+# f(3 * 3)
+# f(9)
+class FuncCallTransformation(BaseTransformation):
+    def isApplicable(self, node: c_ast.Node) -> bool:
+        return isinstance(node, c_ast.FuncCall)
+    
+    def apply(self, node: c_ast.FuncCall) -> c_ast.Decl:
+        buffer_args_exprs = [self.callback(n) for n in list(node.args)]
+        buffer_args = c_ast.ExprList(buffer_args_exprs)
+        func_call = c_ast.FuncCall(
+            node.name,
+            buffer_args,
+            node.coord,
+            node.data
+        )
+        return c_ast.ExprList([
+            createNotifyFromStat(node),
+            func_call
+        ])
+
+    @staticmethod
+    def create(pushVariable: Callable[[str], c_ast.Node], callback: Callable[[c_ast.Node], c_ast.Node]):
+        instance = FuncCallTransformation()
         instance.pushVariable = pushVariable
         instance.callback = callback
         return instance

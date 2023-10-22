@@ -1,17 +1,19 @@
+#include <stdlib.h>
 #include <stdio.h>
 
-int main() {
-   int i = 331 + 1 + 1; 
-   int j = (i + 1 < 5 && i);
-   int k = i + j;
-
-   //if (i == 333) 
-   //   i = 334;
-
-   if (i = 333) 
-      i = 334;
-   
-   printf("k=%d\n", k);
-
-   return k + 89;
+int main(void){
+    int n = 7;
+    int step = 1; 
+    
+    for(int i = 0; 0 <= i && i <= n; i += step){
+        for(int j = 0; j <= i; j += 1){
+            printf(" %d", j);
+        }
+        printf("\n");
+        
+        if(i == n) 
+            step = 0-1;
+    }
+    
+    return EXIT_SUCCESS;
 }
