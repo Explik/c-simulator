@@ -50,8 +50,8 @@ def start_meta_write(file_path1, file_path2):
     c_code_escaped = json.dumps(c_code)
 
     js_code = ("var Module = Module || { };\n"
-               "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\n\"});\n}\n"
-               "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\n\"});\n}\n"
+               "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
+               "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
                "Module.preRun = Module.preRun || [];\n"
                f"Module.preRun.push(function() {{ Module.simulatorCode = {c_code_escaped} }})")
     js_file = open(file_path2, "w")
