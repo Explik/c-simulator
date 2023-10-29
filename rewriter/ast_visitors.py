@@ -10,6 +10,14 @@ def get_node_type(node):
 def get_node_token(node, type):
     return next(t for t in node.get_tokens() if t.kind.name == type.upper()) 
 
+# Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
+def get_binary_node_op(node): 
+    #assert node.kind == CursorKind.BINARY_OPERATOR
+    children_list = [i for i in node.get_children()]
+    assert len(children_list) == 2
+    left_offset = len([i for i in children_list[0].get_tokens()])
+    return [i for i in node.get_tokens()][left_offset].spelling
+
 def get_code_index(code, location) -> int: 
     current_l = location.line
     current_c = location.column - 1
@@ -233,6 +241,9 @@ class ReplaceIdentifierVisitor(AstVisitor):
 
 class ReplaceAdditionVisitor(AstVisitor):
     def visit_BinaryOperator(self, node) -> ModificationNode | None:
+        if get_binary_node_op(node) != '+':
+            return None
+
         operands = list(node.get_children())
         lvalue = self.visit(operands[0])
         rvalue = self.visit(operands[1])
