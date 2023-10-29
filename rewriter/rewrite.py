@@ -1,6 +1,6 @@
 import sys
 import clang.cindex
-from ast_visitors import AstPrinter, AstVisitor, CompoundModificationNode, ModificationNode, ModificationPrinter, ReplaceIdentifierVisitor
+from ast_visitors import AstPrinter, AstVisitor, CompoundModificationNode, ModificationNode, ModificationPrinter, ReplaceAdditionVisitor, ReplaceIdentifierVisitor
 
 class IdempotentAstVisitor(AstVisitor):
     def generic_visit(self, node) -> ModificationNode | None:
@@ -22,10 +22,7 @@ AstPrinter().print(code, tu.cursor)
 print("\n")
 
 print('Generating AST changes...')
-modification = CompoundModificationNode([
-    ReplaceIdentifierVisitor("i", "new_i").visit(tu.cursor),
-    ReplaceIdentifierVisitor("j", "new_j").visit(tu.cursor)
-])
+modification = ReplaceAdditionVisitor().visit(tu.cursor)
 ModificationPrinter().print(modification)
 print("\n")
 

@@ -27,7 +27,44 @@ class Change:
         self.endIndex = endIndex
         self.value = value
 
-class ModificationNode: 
+class BaseNode: 
+    def getChildren(self): 
+        return []
+    
+class ValueNode(BaseNode): 
+    def getValue(self, code) -> str: 
+        raise Exception("Not implemented")
+
+class ConstantValueNode(ValueNode): 
+    def __init__(self, value: str) -> None:
+        super().__init__()
+
+        self.value = value;
+
+    def getValue(self, code) -> str:
+        return self.value
+
+class CopyValueNode(ValueNode):
+    def __init__(self, node) -> None:
+        super().__init__()
+
+        self.startLocation = node.extent.start
+        self.endLocation = node.extent.end
+    
+    def getValue(self, code) -> str:
+        startIndex = get_code_index(code, self.startLocation)
+        endIndex = get_code_index(code, self.endLocation)
+        return code[startIndex:endIndex]
+    
+    def __str__(self) -> str:
+        buffer = "CopyValueNode("
+        if self.startLocation is not None: 
+            buffer += f"start=l{self.startLocation.line}c{self.startLocation.column}, "
+        if self.endLocation is not None: 
+            buffer += f"end=l{self.endLocation.line}c{self.endLocation.column}"
+        return buffer + ")"
+
+class ModificationNode(BaseNode): 
     def apply(self, code):
         """ Applies all changes to code. Fails on overlapping changes"""
         buffer = []
@@ -52,8 +89,6 @@ class ModificationNode:
     def getChanges(self, code) -> list[Change]: 
         raise Exception("Not implemented")
 
-    def getChildren(self): 
-        return []
     
     def __str__(self) -> str:
         return "ModificationNode()"
@@ -76,9 +111,6 @@ class CompoundModificationNode(ModificationNode):
     def __str__(self) -> str:
         return f"CompoundModification({len(self.modifications)} changes)"
 
-class TemplatedModificationNode(ModificationNode): 
-    pass 
-
 class ReplaceNode(ModificationNode):
     def __init__(self) -> None:
         super().__init__()
@@ -86,13 +118,13 @@ class ReplaceNode(ModificationNode):
         self.startLocation = None
         self.endLocation = None
         self.offset = None
-        self.replacement = None
+        self.replacement: ValueNode|None = None
 
     def getChanges(self, code) -> list[Change]:
         startIndex = get_code_index(code, self.startLocation)
         endIndex = get_code_index(code, self.endLocation) if self.endLocation is not None else startIndex + self.offset
 
-        return [Change(startIndex, endIndex, self.replacement)]
+        return [Change(startIndex, endIndex, self.replacement.getValue())]
     
     def __str__(self) -> str:
         buffer = "ReplaceNode("
@@ -103,15 +135,49 @@ class ReplaceNode(ModificationNode):
         if self.offset is not None: 
             buffer += f"offset={self.offset}, "
         if self.replacement is not None: 
-            buffer += f"replacement={self.replacement}"
+            buffer += f"replacement={self.replacement.getValue()}"
 
+        return buffer + ")"
+
+class TemplatedReplaceNode(ModificationNode): 
+    def __init__(self, node, template: str, nodes: list[BaseNode]) -> None:
+        super().__init__()
+
+        self.startLocation = node.extent.start
+        self.endLocation = node.extent.end
+        self.template = template
+        self.nodes = nodes
+    
+    def getChanges(self, code) -> list[Change]:
+        template_buffer = self.template
+        value_nodes = [n for n in self.nodes if isinstance(n, ValueNode)]
+
+        for i in range(len(value_nodes)):
+            value_node = value_nodes[i]
+            template_buffer = template_buffer.replace("{"+f"{i}"+"}", value_node.getValue(code))
+
+        startIndex = get_code_index(code, self.startLocation)
+        endIndex = get_code_index(code, self.endLocation) 
+        return [Change(startIndex, endIndex, template_buffer)]
+    
+    def getChildren(self):
+        return self.nodes
+    
+    def __str__(self) -> str:
+        buffer = "TemplatedReplaceNode("
+        if self.startLocation is not None: 
+            buffer += f"start=l{self.startLocation.line}c{self.startLocation.column}, "
+        if self.endLocation is not None: 
+            buffer += f"end=l{self.endLocation.line}c{self.endLocation.column}, "
+        if self.nodes is not None:
+            buffer += f"{len(self.nodes)} changes"
         return buffer + ")"
     
 class ReplaceIdentiferNode(ReplaceNode): 
-    def __init__(self, node, replacement) -> None:
+    def __init__(self, node, id) -> None:
         super().__init__()
 
-        self.replacement = replacement
+        self.replacement = ConstantValueNode(id)
 
         # Specifying location for replacement
         node_type = get_node_type(node)
@@ -124,7 +190,7 @@ class ReplaceIdentiferNode(ReplaceNode):
             self.endLocation = node.extent.end
         else: 
             raise Exception(f"Unsupported node type {node_type}")
-        
+
 # Based on pycparser's NodeVisitor
 class AstVisitor:
     def visit(self, node) -> ModificationNode|None: 
@@ -164,6 +230,21 @@ class ReplaceIdentifierVisitor(AstVisitor):
             return ReplaceIdentiferNode(node, self.replacement)
         else: 
             return None
+
+class ReplaceAdditionVisitor(AstVisitor):
+    def visit_BinaryOperator(self, node) -> ModificationNode | None:
+        operands = list(node.get_children())
+        lvalue = self.visit(operands[0])
+        rvalue = self.visit(operands[1])
+
+        return TemplatedReplaceNode(
+            node,
+            "add({0}, {1})", 
+            [
+                lvalue if lvalue is not None else CopyValueNode(operands[0]),
+                rvalue if rvalue is not None else CopyValueNode(operands[1])
+            ]
+        )
 
 class AstPrinter: 
     def print(self, code, node, level=0):
