@@ -158,12 +158,19 @@ class TemplatedReplaceNode(ModificationNode):
     
     def getChanges(self, code) -> list[Change]:
         template_buffer = self.template
-        value_nodes = [n for n in self.nodes if isinstance(n, ValueNode)]
 
-        for i in range(len(value_nodes)):
-            value_node = value_nodes[i]
-            template_buffer = template_buffer.replace("{"+f"{i}"+"}", value_node.getValue(code))
-
+        for i in range(len(self.nodes)):
+            node = self.nodes[i] 
+            if isinstance(node, ValueNode):
+                template_buffer = template_buffer.replace("{"+f"{i}"+"}", node.getValue(code))
+            elif isinstance(node, ModificationNode):
+                changes = node.getChanges(code)
+                if len(changes) != 1:
+                    raise Exception("Unsupported change")
+                template_buffer = template_buffer.replace("{"+f"{i}"+"}", changes[0].value)
+            else: 
+                raise Exception("Unsupported node type")
+            
         startIndex = get_code_index(code, self.startLocation)
         endIndex = get_code_index(code, self.endLocation) 
         return [Change(startIndex, endIndex, template_buffer)]
@@ -201,12 +208,12 @@ class ReplaceIdentiferNode(ReplaceNode):
 
 # Based on pycparser's NodeVisitor
 class AstVisitor:
-    def visit(self, node) -> ModificationNode|None: 
+    def visit(self, node, fallback: ModificationNode|None = None) -> ModificationNode|None: 
         node_type = get_node_type(node)
         node_method_name = 'visit_' + node_type
         node_method = getattr(self, node_method_name, self.generic_visit)
-
-        return node_method(node)
+        node_result = node_method(node)
+        return node_result if node_result is not None else fallback
 
     def generic_visit(self, node) -> ModificationNode|None: 
         node_children = node.get_children()
@@ -245,16 +252,13 @@ class ReplaceAdditionVisitor(AstVisitor):
             return None
 
         operands = list(node.get_children())
-        lvalue = self.visit(operands[0])
-        rvalue = self.visit(operands[1])
+        lvalue = self.visit(operands[0], CopyValueNode(operands[0]))
+        rvalue = self.visit(operands[1], CopyValueNode(operands[1]))
 
         return TemplatedReplaceNode(
             node,
             "add({0}, {1})", 
-            [
-                lvalue if lvalue is not None else CopyValueNode(operands[0]),
-                rvalue if rvalue is not None else CopyValueNode(operands[1])
-            ]
+            [lvalue, rvalue]
         )
 
 class AstPrinter: 
