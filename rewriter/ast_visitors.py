@@ -52,7 +52,6 @@ class Change:
     @staticmethod
     def replace(startIndex, endIndex, value) -> 'Change':
         return Change(type='replace', startIndex=startIndex, endIndex=endIndex, value=value)
-        
 
 class BaseNode: 
     def getChildren(self): 
@@ -81,6 +80,30 @@ class CopyValueNode(ValueNode):
     
     def __str__(self) -> str:
         return f"CopyValueNode({format_extent(self.extent)})"
+
+class TemplatedValueNode(ValueNode):
+    def __init__(self, template: str, nodes: list[BaseNode]) -> None:
+        super().__init__()
+        
+        self.template = template
+        self.nodes = nodes
+
+    def getValue(self, code) -> str:
+        template_buffer = self.template
+
+        for i in range(len(self.nodes)):
+            node = self.nodes[i] 
+            if isinstance(node, ValueNode):
+                template_buffer = template_buffer.replace("{"+f"{i}"+"}", node.getValue(code))
+            elif isinstance(node, ModificationNode):
+                changes = node.getChanges(code)
+                if len(changes) != 1:
+                    raise Exception("Unsupported change")
+                template_buffer = template_buffer.replace("{"+f"{i}"+"}", changes[0].value)
+            else: 
+                raise Exception("Unsupported node type")
+            
+        return template_buffer
 
 class ModificationNode(BaseNode): 
     def apply(self, code):
@@ -141,20 +164,28 @@ class ReplaceNode(ModificationNode):
         startIndex = get_code_index(code, self.startLocation)
         endIndex = get_code_index(code, self.endLocation) if self.endLocation is not None else startIndex + self.offset
 
-        return [Change.replace(startIndex, endIndex, self.replacement.getValue())]
+        return [Change.replace(startIndex, endIndex, self.replacement.getValue(code))]
     
     def __str__(self) -> str:
         buffer = "ReplaceNode("
         if self.startLocation is not None: 
             buffer += f"start=l{self.startLocation.line}c{self.startLocation.column}, "
         if self.endLocation is not None: 
-            buffer += f"end=l{self.endLocation.line}c{self.endLocation.column}, "
+            buffer += f"end=l{self.endLocation.line}c{self.endLocation.column}"
         if self.offset is not None: 
-            buffer += f"offset={self.offset}, "
-        if self.replacement is not None: 
-            buffer += f"replacement={self.replacement.getValue()}"
+            buffer += f"offset={self.offset}"
+        #if self.replacement is not None: 
+        #    buffer += f"replacement={self.replacement.getValue()}"
 
         return buffer + ")"
+    
+    @staticmethod
+    def create(node, replacement: ValueNode): 
+        n = ReplaceNode()
+        n.startLocation = node.extent.start
+        n.endLocation = node.extent.end
+        n.replacement = replacement
+        return n
 
 class TemplatedReplaceNode(ModificationNode): 
     def __init__(self, node, template: str, nodes: list[BaseNode]) -> None:
@@ -196,7 +227,7 @@ class TemplatedReplaceNode(ModificationNode):
         if self.nodes is not None:
             buffer += f"{len(self.nodes)} changes"
         return buffer + ")"
-    
+
 class ReplaceIdentiferNode(ReplaceNode): 
     def __init__(self, node, id) -> None:
         super().__init__()
