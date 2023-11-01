@@ -4,6 +4,15 @@ def get_node_type(node):
     kind = node.kind.name
     return "".join(x.capitalize() for x in kind.lower().split("_"))
 
+def AssignmentTemplateNode(lvalue, rvalue): 
+    return TemplatedValueNode("{0}={1}", [lvalue, rvalue])
+
+def CommaTemplateNode(*args): 
+    placeholders = ["{" + f"{n}" + "}" for n in list(range(0, len(args)))]
+    template = ", ".join(placeholders)
+
+    return TemplatedValueNode(template, args)
+
 # Transformation visitors must follow the following rules:
 # - Expression transformations must return c_ast.ExprList
 # - Statement transformations must return another statement
@@ -29,16 +38,13 @@ class IdTransformation(BaseTransformation):
         return get_node_type(node) == "DeclRefExpr"
 
     def apply(self, node):
-        value = TemplatedValueNode(
-            "{0}, {1}, {2}",
-            [
-                TemplatedValueNode(
-                    "{0}={1}",
-                    [ConstantValueNode('temp0'), CopyValueNode(node)]
-                ),
-                ConstantValueNode('notify()'),
-                ConstantValueNode('temp0')
-            ]
+        value = CommaTemplateNode(
+            AssignmentTemplateNode(
+                ConstantValueNode('temp0'),
+                CopyValueNode(node)
+            ),
+            ConstantValueNode('notify()'),
+            ConstantValueNode('temp0')
         )
         return ReplaceNode.create(node, value)
     
