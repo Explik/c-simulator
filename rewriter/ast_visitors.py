@@ -29,11 +29,30 @@ def get_code_index(code, location) -> int:
     else: 
         return current_c
 
+def get_code_indexes(code, extent) -> (int, int):
+    return (get_code_index(code, extent.start), get_code_index(code, extent.end))
+
+def format_location(location):
+    return f"\"l{location.line} c{location.column}\""
+
+def format_extent(extent):
+    return f"start={format_location(extent.start)}, end={format_location(extent.end)}"
+
 class Change:
-    def __init__(self, startIndex, endIndex, value) -> None:
+    def __init__(self, type=None, startIndex=None, endIndex=None, value=None) -> None: 
+        self.type = type
         self.startIndex = startIndex
         self.endIndex = endIndex
         self.value = value
+
+    @staticmethod
+    def insert(value) -> 'Change':
+        return Change(type='insert', value=value)
+
+    @staticmethod
+    def replace(startIndex, endIndex, value) -> 'Change':
+        return Change(type='replace', startIndex=startIndex, endIndex=endIndex, value=value)
+        
 
 class BaseNode: 
     def getChildren(self): 
@@ -46,7 +65,6 @@ class ValueNode(BaseNode):
 class ConstantValueNode(ValueNode): 
     def __init__(self, value: str) -> None:
         super().__init__()
-
         self.value = value;
 
     def getValue(self, code) -> str:
@@ -55,22 +73,14 @@ class ConstantValueNode(ValueNode):
 class CopyValueNode(ValueNode):
     def __init__(self, node) -> None:
         super().__init__()
-
-        self.startLocation = node.extent.start
-        self.endLocation = node.extent.end
+        self.extent = node.extent
     
     def getValue(self, code) -> str:
-        startIndex = get_code_index(code, self.startLocation)
-        endIndex = get_code_index(code, self.endLocation)
+        (startIndex, endIndex) = get_code_indexes(code, self.extent)
         return code[startIndex:endIndex]
     
     def __str__(self) -> str:
-        buffer = "CopyValueNode("
-        if self.startLocation is not None: 
-            buffer += f"start=l{self.startLocation.line}c{self.startLocation.column}, "
-        if self.endLocation is not None: 
-            buffer += f"end=l{self.endLocation.line}c{self.endLocation.column}"
-        return buffer + ")"
+        return f"CopyValueNode({format_extent(self.extent)})"
 
 class ModificationNode(BaseNode): 
     def apply(self, code):
@@ -97,7 +107,6 @@ class ModificationNode(BaseNode):
     def getChanges(self, code) -> list[Change]: 
         raise Exception("Not implemented")
 
-    
     def __str__(self) -> str:
         return "ModificationNode()"
 
@@ -132,7 +141,7 @@ class ReplaceNode(ModificationNode):
         startIndex = get_code_index(code, self.startLocation)
         endIndex = get_code_index(code, self.endLocation) if self.endLocation is not None else startIndex + self.offset
 
-        return [Change(startIndex, endIndex, self.replacement.getValue())]
+        return [Change.replace(startIndex, endIndex, self.replacement.getValue())]
     
     def __str__(self) -> str:
         buffer = "ReplaceNode("
@@ -173,7 +182,7 @@ class TemplatedReplaceNode(ModificationNode):
             
         startIndex = get_code_index(code, self.startLocation)
         endIndex = get_code_index(code, self.endLocation) 
-        return [Change(startIndex, endIndex, template_buffer)]
+        return [Change.replace(startIndex, endIndex, template_buffer)]
     
     def getChildren(self):
         return self.nodes
