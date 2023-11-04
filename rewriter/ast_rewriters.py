@@ -9,6 +9,14 @@ def get_node_type(node):
     kind = node.kind.name
     return "".join(x.capitalize() for x in kind.lower().split("_"))
 
+# Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
+def get_node_binary_operator(node): 
+    #assert node.kind == CursorKind.BINARY_OPERATOR
+    children_list = [i for i in node.get_children()]
+    assert len(children_list) == 2
+    left_offset = len([i for i in children_list[0].get_tokens()])
+    return [i for i in node.get_tokens()][left_offset].spelling
+
 def get_token_kind(token):
     return token.kind.name.lower()
 
@@ -107,6 +115,9 @@ class ModificationNode():
         return False
     def apply(self, node: SourceNode) -> SourceNode:
         raise Exception("Not implemented")
+    
+    def getChildren(self) -> list['ModificationNode']:
+        return []
 
 class ConstantNode(ModificationNode):
     def __init__(self, value: str) -> None:
@@ -119,6 +130,18 @@ class ConstantNode(ModificationNode):
     
     def apply(self, node: SourceNode) -> SourceNode:
         return SourceNode.create(self.value, None, [])
+
+class CopyNode(ModificationNode):
+    def __init__(self, source: SourceNode) -> None:
+        super().__init__()
+        self.source = source
+    
+    def isApplicable(self, node: SourceNode) -> bool:
+        """Copy nodes are not connected to source tree and can therefore not be applied to it""" 
+        return False 
+    
+    def apply(self, node: SourceNode) -> SourceNode:
+        return SourceNode.copy(self.source)
 
 class CompoundNode(ModificationNode):
     def __init__(self, target: SourceNode|None, modifications: list[ModificationNode]) -> None:
@@ -184,9 +207,12 @@ class ReplaceNode(ModificationNode):
     
     def apply(self, node: SourceNode) -> SourceNode:
         return self.replacement.apply(node)
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return [self.replacement]
 
-# Replaces identifier token that is not a child node
 class ReplaceIdentifierNode(ModificationNode): 
+    """Replaces identififer token that is part of target node"""
     def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
         super().__init__()
         self.target = target
@@ -230,6 +256,69 @@ class ReplaceIdentifierNode(ModificationNode):
         new_node.children = new_children
         new_node.value = new_value
         return new_node
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return [self.replacement]
+
+class ReplaceChildren(ModificationNode): 
+    def __init__(self, target: SourceNode, replacements: list[ModificationNode]) -> None:
+        super().__init__()
+        self.target = target
+        self.replacements = replacements
+
+        number_of_children = len(target.children)
+        if number_of_children != len(replacements):
+            raise Exception(f"Expected {number_of_children} number of replacements")
+        
+    def isApplicable(self, node: SourceNode) -> bool:
+        return SourceNode.equals(node, self.target)
+    
+    def apply(self, node: SourceNode) -> SourceNode:
+        new_children = []
+        for i in range(0, len(node.children)): 
+            new_child = self.replacements[i].apply(node.children[i])
+            new_children.append(new_child)
+
+        new_node = SourceNode.copy(node)
+        new_node.children = new_children
+        return new_node
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return self.replacements
+
+class TemplatedNode(ModificationNode):
+    def __init__(self, template: str, replacements: list[ModificationNode]) -> None:
+        super().__init__()
+        self.template = template
+        self.replacements = replacements
+
+    def isApplicable(self, node: SourceNode) -> bool:
+        """Templated nodes are not connected to source tree and can therefore not be applied to it""" 
+        return False 
+    
+    def apply(self, node: SourceNode) -> SourceNode:
+        new_children = [r.apply(node) for r in self.replacements]
+        return SourceNode.create(self.template, None, new_children)
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return self.replacements
+    
+class TemplatedReplaceNode(ModificationNode): 
+    def __init__(self, target: SourceNode, template: str, replacements: list[ModificationNode]) -> None:
+        super().__init__()
+        self.target = target
+        self.template = template
+        self.replacements = replacements
+
+    def isApplicable(self, node: SourceNode) -> bool:
+        return SourceNode.equals(node, self.target)
+    
+    def apply(self, node: SourceNode) -> SourceNode:
+        new_children = [r.apply(node) for r in self.replacements]
+        return SourceNode.create(self.template, None, new_children)
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return self.replacements
 
 # Based on pycparser's NodeVisitor
 class SourceTreeVisitor:
@@ -262,6 +351,24 @@ class SourceTreeModifier:
             return modification_node.apply(new_source_node) 
         else: 
             return new_source_node
+
+class ReplaceAdditionSourceTreeVisitor(SourceTreeVisitor):
+    def visit_BinaryOperator(self, source_node: SourceNode) -> list[ModificationNode]:
+        if get_node_binary_operator(source_node.node) != '+':
+            return []
+        
+        lvalue = self.visit(source_node.children[0])
+        if len(lvalue) == 0: 
+            lvalue = [CopyNode(source_node.children[0])]
+        rvalue = self.visit(source_node.children[1])
+        if len(rvalue) == 0: 
+            rvalue = [CopyNode(source_node.children[1])]
+        
+        return [TemplatedReplaceNode(
+            source_node, 
+            "add({0}, {1})",
+            lvalue + rvalue
+        )]
 
 class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
     def __init__(self, target: str, replacement: str) -> None:
