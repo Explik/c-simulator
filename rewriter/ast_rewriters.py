@@ -388,3 +388,44 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
             return [ReplaceNode(source_node, ConstantNode(self.replacement))]
         else: 
             return []
+        
+class NotifySourceTreeVisitor(SourceTreeVisitor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.declarations: list[ModificationNode] = []
+
+    def visit_FunctionDecl(self, source_node) -> list[ModificationNode]:
+        new_children = flatten([self.visit(c) for c in source_node.children])
+
+        function_body = source_node.children[0]
+        number_of_declarations = len(self.declarations)
+        number_of_statements = len(function_body.children)
+        placeholders = ["{" + f"{i}" + "}" for i in range(0, number_of_declarations + number_of_statements)]
+        template = "{\n  " + "\n  ".join(placeholders) + "\n}"
+
+        return new_children + [TemplatedReplaceNode(
+            function_body, 
+            template,
+            self.declarations + [CopyNode(c) for c in function_body.children]
+        )]
+
+    def visit_DeclRefExpr(self, source_node) -> list[ModificationNode]:
+        temp = f"temp{len(self.declarations)}"
+        self.declarations.append(ConstantNode(f"int {temp};"))
+
+        par1 = TemplatedNode(
+            "{0}={1}",
+            [ConstantNode(temp), CopyNode(source_node)]
+        )
+        par2 = ConstantNode("notify()")
+        par3 = ConstantNode(temp)
+        
+        return [TemplatedReplaceNode(
+            source_node,
+            "{0},{1}",
+            [
+                TemplatedNode("{0},{1}", [par1, par2]),
+                par3
+            ]
+        )]
+
