@@ -111,6 +111,59 @@ class ConstantNode(ModificationNode):
     def apply(self, node: SourceNode) -> SourceNode:
         return SourceNode.create(self.value, None, [])
 
+class CompoundNode(ModificationNode):
+    def __init__(self, target: SourceNode|None, modifications: list[ModificationNode]) -> None:
+        super().__init__()
+        self.target = target
+        self.modifications = modifications
+
+    def isApplicable(self, node: SourceNode) -> bool:
+        """If no target is specified, finds last common ancestor of modification-applicable nodes"""
+        if self.target is not None:
+            return SourceNode.equals(node, self.target)
+        
+        # Verifies that all modifications are applicable to current node
+        if not CompoundNode.isApplicableCommonAncestor(node, self.modifications): 
+            return False
+        
+        # Verifies that all modifications are not applicable to any children 
+        for child in node.children: 
+            if CompoundNode.isApplicableCommonAncestor(child, self.modifications):
+                return False
+        
+        self.target = node
+        return True
+
+    def apply(self, node: SourceNode) -> SourceNode:
+        new_children = [self.apply(c) for c in node.children]
+        new_source_node = SourceNode.copy(node)
+        new_source_node.children = new_children
+
+        modification = next((m for m in self.modifications if m.isApplicable(node)), None)
+        if modification is not None:
+            return modification.apply(new_source_node) 
+        else: 
+            return node
+
+    @staticmethod
+    def isApplicableCommonAncestor(node, modifications: list[ModificationNode]):
+        for modifications in modifications:
+            if not CompoundNode.isAnyDescendantApplicable(node, modifications):
+                return False
+            
+        return True
+
+    @staticmethod
+    def isAnyDescendantApplicable(node: SourceNode, modification: ModificationNode):
+        if modification.isApplicable(node):
+            return True
+
+        for child in node.children:
+            if CompoundNode.isAnyDescendantApplicable(child, modification):
+                return True
+            
+        return False
+
 class ReplaceNode(ModificationNode):
     def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
         super().__init__() 
@@ -123,6 +176,25 @@ class ReplaceNode(ModificationNode):
     def apply(self, node: SourceNode) -> SourceNode:
         return self.replacement.apply(node)
 
+# Replaces identifier token that is not a child node
+class ReplaceIdentifierNode(ModificationNode): 
+    def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
+        super().__init__()
+        self.target = target
+        self.replacement = replacement
+
+        node_type = get_node_type(target.node)
+        allowed_node_types = ['VarDecl']
+        if node_type not in allowed_node_types: 
+            raise Exception(f"Unsupported node type {node_type}")
+        
+    def isApplicable(self, node: SourceNode) -> bool:
+        return SourceNode.equals(node, self.target)
+    
+    def apply(self, target: SourceNode) -> SourceNode:
+        return target
+        #tokens = target.node.get_tokens()
+
 # Based on pycparser's NodeVisitor
 class SourceTreeVisitor:
     def visit(self, source_node: SourceNode): 
@@ -132,7 +204,7 @@ class SourceTreeVisitor:
         node_result = node_method(source_node)
         return node_result
 
-    def generic_visit(self, source_node: SourceNode) -> ModificationNode|None: 
+    def generic_visit(self, source_node: SourceNode) -> list[ModificationNode]|None: 
         source_node_modifications = [self.visit(c) for c in source_node.children]
         source_node_filtered_modifications = [m for m in source_node_modifications if m is not None]
 
@@ -141,11 +213,11 @@ class SourceTreeVisitor:
         elif len(source_node_filtered_modifications) == 1:
             return source_node_filtered_modifications[0]
         else:
-            return None #CompoundModificationNode(source_node_filtered_modifications)
+            return CompoundNode(None, source_node_filtered_modifications)
 
 class SourceTreeModifier: 
-    def __init__(self, modification_nodes: list[ModificationNode]) -> None:
-        self.modification_nodes = modification_nodes
+    def __init__(self, modification_node: ModificationNode) -> None:
+        self.modification_node = modification_node
 
     def visit(self, source_node: SourceNode): 
         # Depth first replacement
@@ -153,14 +225,11 @@ class SourceTreeModifier:
         new_source_node = SourceNode.copy(source_node)
         new_source_node.children = new_children
 
-        # Modification is found using nodes in the original tree
-        modification_node = next((n for n in self.modification_nodes if n.isApplicable(new_source_node)), None)
-
         # Apply modification if found
-        if modification_node is None: 
-            return new_source_node
+        if self.modification_node.isApplicable(source_node):
+            return self.modification_node.apply(new_source_node) 
         else: 
-            return modification_node.apply(new_source_node)
+            return new_source_node
 
 class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
     def __init__(self, target: str, replacement: str) -> None:
@@ -169,11 +238,11 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
         self.target = target
         self.replacement = replacement
 
-    #def visit_VarDecl(self, source_node) -> ModificationNode|None: 
-    #    if (source_node.node.spelling == self.target):
-    #        return ReplaceNode(source_node, ConstantNode(self.replacement))
-    #    else: 
-    #        return None
+    def visit_VarDecl(self, source_node) -> ModificationNode|None: 
+        if (source_node.node.spelling == self.target):
+            return ReplaceIdentifierNode(source_node, ConstantNode(self.replacement))
+        else: 
+            return None
 
     def visit_DeclRefExpr(self, source_node) -> ModificationNode|None:
         if (source_node.node.spelling == self.target):
