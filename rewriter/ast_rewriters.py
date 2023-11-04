@@ -1,7 +1,16 @@
+import re
+
+# Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
 # Based on https://stackoverflow.com/questions/19053707/converting-snake-case-to-lower-camel-case-lowercamelcase
 def get_node_type(node): 
     kind = node.kind.name
     return "".join(x.capitalize() for x in kind.lower().split("_"))
+
+def get_token_kind(token):
+    return token.kind.name.lower()
 
 def get_code_index(code, location) -> int: 
     current_l = location.line
@@ -192,8 +201,35 @@ class ReplaceIdentifierNode(ModificationNode):
         return SourceNode.equals(node, self.target)
     
     def apply(self, target: SourceNode) -> SourceNode:
-        return target
-        #tokens = target.node.get_tokens()
+        # Algorithm will break for nodes with more than 10 children
+        if len(target.children) > 10:
+            raise Exception("Unsupported number of children")
+
+        # Generate new node value
+        new_value = target.value
+        new_children = target.children
+        node_tokens = list(target.node.get_tokens())
+        column_offset = node_tokens[0].extent.start.column
+        for token in node_tokens: 
+            # Identifies token start and end in the context of new_value
+            token_kind = get_token_kind(token)
+            token_start = token.extent.start.column - column_offset
+            token_end = token.extent.end.column - column_offset
+
+            # Attempt to replace identifier token with template
+            if token.cursor == target.node: 
+                if token_kind == "identifier":
+                    new_value = new_value[0:token_start] + "{" + f"{len(new_children)}" + "}" + new_value[token_end:]
+                    new_children = new_children + [self.replacement.apply(target)]
+                    column_offset += len("{0}") - (token_end - token_start)
+            else: 
+                column_offset += len("{0}")
+
+        # Generate new node
+        new_node = SourceNode.copy(target)
+        new_node.children = new_children
+        new_node.value = new_value
+        return new_node
 
 # Based on pycparser's NodeVisitor
 class SourceTreeVisitor:
@@ -204,20 +240,14 @@ class SourceTreeVisitor:
         node_result = node_method(source_node)
         return node_result
 
-    def generic_visit(self, source_node: SourceNode) -> list[ModificationNode]|None: 
-        source_node_modifications = [self.visit(c) for c in source_node.children]
-        source_node_filtered_modifications = [m for m in source_node_modifications if m is not None]
-
-        if len(source_node_filtered_modifications) == 0:
-            return None
-        elif len(source_node_filtered_modifications) == 1:
-            return source_node_filtered_modifications[0]
-        else:
-            return CompoundNode(None, source_node_filtered_modifications)
+    def generic_visit(self, source_node: SourceNode) -> list[ModificationNode]: 
+        source_node_modification_lists = [self.visit(c) for c in source_node.children]
+        source_node_modifications = flatten(source_node_modification_lists)
+        return source_node_modifications
 
 class SourceTreeModifier: 
-    def __init__(self, modification_node: ModificationNode) -> None:
-        self.modification_node = modification_node
+    def __init__(self, modification_nodes: ModificationNode) -> None:
+        self.modification_nodes = modification_nodes
 
     def visit(self, source_node: SourceNode): 
         # Depth first replacement
@@ -225,9 +255,11 @@ class SourceTreeModifier:
         new_source_node = SourceNode.copy(source_node)
         new_source_node.children = new_children
 
+        modification_node = next((m for m in self.modification_nodes if m.isApplicable(source_node)), None)
+
         # Apply modification if found
-        if self.modification_node.isApplicable(source_node):
-            return self.modification_node.apply(new_source_node) 
+        if modification_node is not None:
+            return modification_node.apply(new_source_node) 
         else: 
             return new_source_node
 
@@ -238,14 +270,14 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
         self.target = target
         self.replacement = replacement
 
-    def visit_VarDecl(self, source_node) -> ModificationNode|None: 
+    def visit_VarDecl(self, source_node) -> list[ModificationNode]: 
         if (source_node.node.spelling == self.target):
-            return ReplaceIdentifierNode(source_node, ConstantNode(self.replacement))
+            return [ReplaceIdentifierNode(source_node, ConstantNode(self.replacement))]
         else: 
-            return None
+            return []
 
-    def visit_DeclRefExpr(self, source_node) -> ModificationNode|None:
+    def visit_DeclRefExpr(self, source_node) -> list[ModificationNode]:
         if (source_node.node.spelling == self.target):
-            return ReplaceNode(source_node, ConstantNode(self.replacement))
+            return [ReplaceNode(source_node, ConstantNode(self.replacement))]
         else: 
-            return None
+            return []
