@@ -1,6 +1,6 @@
 
 # Based on pycparser's NodeVisitor
-from modification_nodes import ConstantNode, CopyNode, InsertBeforeStatementsNode, ModificationNode, TemplatedNode, TemplatedReplaceNode
+from modification_nodes import ConstantNode, CopyNode, InsertBeforeStatementsNode, ModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_replace_node
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -93,19 +93,13 @@ class NotifySourceTreeVisitor(SourceTreeVisitor):
         temp = f"temp{len(self.declarations)}"
         self.declarations.append(ConstantNode(f"int {temp};"))
 
-        par1 = TemplatedNode(
-            "{0}={1}",
-            [ConstantNode(temp), CopyNode(source_node)]
-        )
-        par2 = ConstantNode("notify()")
-        par3 = ConstantNode(temp)
-        
-        return [TemplatedReplaceNode(
+        value = comma_replace_node(
             source_node,
-            "{0}, {1}",
-            [
-                TemplatedNode("{0}, {1}", [par1, par2]),
-                par3
-            ]
-        )]
-
+            assignment_node(
+                ConstantNode(temp), 
+                CopyNode(source_node)
+            ),
+            ConstantNode("notify()"),
+            ConstantNode(temp)
+        )
+        return [value]

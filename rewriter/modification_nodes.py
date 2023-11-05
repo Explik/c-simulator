@@ -15,7 +15,7 @@ def get_token_equals(token1, token2):
     isEqualExtent = start1.line == start2.line and start1.column == start2.column and end1.line == end2.line and end1.column == end2.line
     return token1.spelling == token2 and isEqualExtent
         
-# Modification tree 
+# Basic nodes
 class ModificationNode():
     def isApplicable(self, node: SourceNode) -> bool:
         return False
@@ -231,11 +231,13 @@ class InsertAfterTokenNode(ModificationNode):
     def getChildren(self) -> list[ModificationNode]:
         return [self.replacement]
 
+# Composite nodes 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: ModificationNode) -> None:
         targetToken = next((t for t in targetNode.node_tokens if get_token_kind(t) == targetTokenKind), None)
         if targetNode is None: 
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
+        
         super().__init__(targetNode, targetToken, insertion)
 
 class InsertBeforeStatementsNode(InsertAfterTokenNode):
@@ -245,3 +247,49 @@ class InsertBeforeStatementsNode(InsertAfterTokenNode):
         insertions = insertions if isinstance(insertions, list) else [insertions]
 
         super().__init__(target, first_token, insertions)
+
+# Node creation functions 
+# Template functions are recursive by default
+def template_node(template, *args): 
+    if len(args) == 1: 
+        raise Exception("Unexpected number of arguments")
+    elif len(args) == 2:
+        return TemplatedNode(
+            template,
+            args
+        )
+    else: 
+        return template_node(
+            template,
+            template_node(template, args[0], *args[:-1]),
+            *args[-1]
+        )
+
+def template_replace_node(template, target, *args):
+    if len(args) == 1: 
+        raise Exception("Unexpected number of arguments")
+    elif len(args) == 2:
+        return TemplatedReplaceNode(
+            target,
+            template,
+            args
+        )
+    else: 
+        return template_replace_node(
+            template,
+            target, 
+            template_node(template, *args[:-1]),
+            args[-1],
+        )
+
+def assignment_node(*args):
+    return template_node("{0} = {1}", *args)
+
+def assignment_replace_node(target, *args):
+    return template_replace_node("{0} = {1}", target, *args)
+
+def comma_node(*args): 
+    return template_node("{0}, {1}", *args)
+
+def comma_replace_node(target, *args): 
+    return template_replace_node("{0}, {1}", target, *args)
