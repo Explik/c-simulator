@@ -4,22 +4,16 @@ import re
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
-# Based on https://stackoverflow.com/questions/19053707/converting-snake-case-to-lower-camel-case-lowercamelcase
-def get_node_type(node): 
-    kind = node.kind.name
-    return "".join(x.capitalize() for x in kind.lower().split("_"))
-
-# Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
-def get_node_binary_operator(node): 
-    #assert node.kind == CursorKind.BINARY_OPERATOR
-    children_list = [i for i in node.get_children()]
-    assert len(children_list) == 2
-    left_offset = len([i for i in children_list[0].get_tokens()])
-    return [i for i in node.get_tokens()][left_offset].spelling
-
 def get_token_kind(token):
     return token.kind.name.lower()
 
+def get_token_equals(token1, token2): 
+    """Verifies that token has same spelling and location"""
+    (start1, end1) = token1.extent
+    (start2, end2) = token2.extent
+    isEqualExtent = start1.line == start2.line and start1.column == start2.column and end1.line == end2.line and end1.column == end2.line
+    return token1.spelling == token2 and isEqualExtent
+        
 def get_code_index(code, location) -> int: 
     current_l = location.line
     current_c = location.column - 1
@@ -35,65 +29,166 @@ def get_code_indexes(code, extent) -> (int, int):
     return (get_code_index(code, extent.start), get_code_index(code, extent.end))
 
 # Source tree 
+class SourceToken: 
+    def __init__(self) -> None:
+        self.value = None
+        self.token = None
+
+    def __str__(self) -> str:
+        return self.value
+
+    @staticmethod
+    def create(token, value): 
+        t = SourceToken()
+        t.value = value 
+        t.token = token
+        return t
+
 class SourceNode: 
     counter = 0
+    
+    def get_children(self) -> list['SourceNode']: 
+        return self.children
+    
+    def get_tokens(self) -> list[SourceToken]:
+        return self.tokens
+
+    def __eq__(self, node: object) -> bool:
+        if isinstance(node, SourceNode): 
+            return False
+        return self.id == node.id
 
     def __str__(self) -> str:
         buffer = self.value
+        for i in range(0, len(self.tokens)): 
+            buffer = buffer.replace("{t"+f"{i}"+"}", f"{self.tokens[i]}")
         for i in range(0, len(self.children)):
-
             buffer = buffer.replace("{"+f"{i}"+"}", f"{self.children[i]}")
         return buffer
     
     @staticmethod
-    def create(value, node, children) -> None:
+    def create(node, value, tokens: list[SourceToken], children: list['SourceNode']) -> None:
         SourceNode.counter += 1
         s = SourceNode()
         s.id = SourceNode.counter
-        s.value = value
         s.node = node
-        s.children: list[SourceNode] = children
+        s.value = value
+        s.tokens = tokens
+        s.children = children
         return s
 
     @staticmethod
-    def copy(source): 
+    def copy(source: 'SourceNode'): 
         s = SourceNode()
         s.id = source.id
         s.value = source.value
         s.node = source.node
+        s.tokens = source.tokens
         s.children = source.children
         return s
     
     @staticmethod
     def equals(node1, node2): 
         return node1.id == node2.id
+    
+    @staticmethod
+    def replace_child(source: 'SourceNode', source_child: 'SourceNode', replacement: 'SourceNode'): 
+        new_children = [(replacement if c == source_child else c) for c in source.children]
+        new_source = SourceNode.copy(source)
+        new_source.children = new_children
+        return new_children
+    
+    @staticmethod
+    def replace_token(source: 'SourceNode', source_token: SourceToken, replacement: SourceToken):
+        new_children = [(replacement if t == source_token else t) for t in source.tokens]
+        new_source = SourceNode.copy(source)
+        new_source.children = new_children
+        return new_children
+
+    @staticmethod
+    def insert_before_token(source: 'SourceNode', source_token: SourceToken, replacements: SourceToken, start_whitespace = " ", end_whitespace = " "):
+        token_index = next((i for i,t in enumerate(source.tokens) if t == source_token), None)
+        if (token_index is None):
+            raise Exception(f"None does not contain token")
+        value_index = source.value.index("{t"+f"{token_index}"+"}")
+        new_value = source.value[0:value_index] + start_whitespace + ("{t"+f"{len(source.tokens)}"+"}") + end_whitespace
+
+        new_tokens = source.tokens + [replacements]
+
+        new_source = SourceNode.copy(source)
+        new_source.value = new_value
+        new_source.tokens = new_tokens
+        return new_source
+    
+    @staticmethod
+    def insert_after_token(source: 'SourceNode', source_token: SourceToken, replacements: SourceToken, start_whitespace = " ", end_whitespace = " "):
+        token_index = next((i for i,t in enumerate(source.tokens) if t == source_token), None)
+        if (token_index is None):
+            raise Exception(f"None does not contain token")
+        token_placeholder = "{t"+f"{token_index}"+"}"
+        value_index = source.value.index(token_placeholder) + len(token_placeholder)
+        new_value = source.value[0:value_index] + start_whitespace + ("{t"+f"{len(source.tokens)}"+"}") + end_whitespace + source.value[value_index:]
+
+        new_tokens = source.tokens + [replacements]
+
+        new_source = SourceNode.copy(source)
+        new_source.value = new_value
+        new_source.tokens = new_tokens
+        return new_source
+
+class SourceNodeResolver: 
+    """Utility methods for SourceNode information"""
+    
+    @staticmethod
+    def get_type(node: SourceNode) -> str:
+        # Based on https://stackoverflow.com/questions/19053707/converting-snake-case-to-lower-camel-case-lowercamelcase
+        kind = node.node.kind.name
+        return "".join(x.capitalize() for x in kind.lower().split("_"))
+
+    @staticmethod
+    def get_binary_operator(node: SourceNode) -> str:
+        # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
+        assert len(node.children) == 2
+        left_offset = len([i for i in node.children[0].tokens])
+        return [i for i in node.tokens][left_offset].token.spelling
 
 class SourceTreeCreator: 
     def create(self, code, node):
         """Recursively split code into segments based on node ranges"""
+        token_buffer = []
+        value_buffer = []
+
         children = list(node.get_children())
+        tokens = list([t for t in node.get_tokens() if t.cursor == node])
         child_locations = [(i, c, get_code_index(code, c.extent.start), get_code_index(code, c.extent.end)) for i,c in enumerate(children)]
+        token_locations = [(i, t, get_code_index(code, t.extent.start), get_code_index(code, t.extent.end)) for i,t in enumerate(tokens)]
         (startIndex, endIndex) = get_code_indexes(code, node.extent)
 
-        if len(children) == 0:
-            return SourceNode.create(code[startIndex:endIndex], node, [])
-        
-        buffer = []
         i = startIndex
         while i < endIndex:
-            child_location = next((cl for cl in child_locations if  cl[2] <= i and i < cl[3]), None)
+            child_location = next((cl for cl in child_locations if cl[2] <= i and i < cl[3]), None)
+            token_location = next((tl for tl in token_locations if tl[2] <= i and i < tl[3]), None)
             
-            if child_location is None: 
-                buffer.append(code[i])
+            if child_location is not None: 
+                (child_number, _, child_start_index, child_end_index) = child_location
+                value_buffer += ("{" + f"{child_number}" + "}")
+                i += (child_end_index - child_start_index)
+            elif token_location is not None: 
+                (token_number, token, token_start_index, token_end_index) = token_location
+                value_buffer += ("{t" + f"{token_number}" + "}") 
+                i += (token_end_index - token_start_index)
+                token_buffer.append(SourceToken.create(token, code[token_start_index:token_end_index]))
+            else: 
+                value_buffer += code[i]
                 i += 1
-            else:
-                buffer += ("{" + f"{child_location[0]}" + "}")
-                i += (child_location[3] - child_location[2])
         
         transformed_children = [self.create(code, n) for n in children]
-        return SourceNode.create("".join(buffer), node, transformed_children)
+        return SourceNode.create(node, "".join(value_buffer), token_buffer, transformed_children)
 
 class SourceTreePrinter:
+    def __init__(self) -> None:
+        pass
+
     def print(self, node, level = 0):
         """Recursive print function to traverse the AST"""
         print('  ' * level + f"{node} (#{node.id})".replace("\n", "\\n"))
@@ -129,7 +224,7 @@ class ConstantNode(ModificationNode):
         return False
     
     def apply(self, node: SourceNode) -> SourceNode:
-        return SourceNode.create(self.value, None, [])
+        return SourceNode.create(None, self.value, [], [])
 
 class CopyNode(ModificationNode):
     def __init__(self, source: SourceNode) -> None:
@@ -211,54 +306,32 @@ class ReplaceNode(ModificationNode):
     def getChildren(self) -> list[ModificationNode]:
         return [self.replacement]
 
-class ReplaceIdentifierNode(ModificationNode): 
+class ReplaceTokenNode(ModificationNode): 
     """Replaces identififer token that is part of target node"""
-    def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
+    def __init__(self, targetNode: SourceNode, targetToken, replacement: ModificationNode) -> None:
         super().__init__()
-        self.target = target
+        self.targetNode = targetNode
+        self.targetToken = targetToken
         self.replacement = replacement
 
-        node_type = get_node_type(target.node)
-        allowed_node_types = ['VarDecl']
-        if node_type not in allowed_node_types: 
-            raise Exception(f"Unsupported node type {node_type}")
+        if not any(t for t in targetNode.node_tokens if t == targetToken):
+            raise Exception(f"Target node {targetNode.id} does not contain target token")
         
     def isApplicable(self, node: SourceNode) -> bool:
-        return SourceNode.equals(node, self.target)
+        return SourceNode.equals(node, self.targetNode)
     
     def apply(self, target: SourceNode) -> SourceNode:
-        # Algorithm will break for nodes with more than 10 children
-        if len(target.children) > 10:
-            raise Exception("Unsupported number of children")
-
-        # Generate new node value
-        new_value = target.value
-        new_children = target.children
-        node_tokens = list(target.node.get_tokens())
-        column_offset = node_tokens[0].extent.start.column
-        for token in node_tokens: 
-            # Identifies token start and end in the context of new_value
-            token_kind = get_token_kind(token)
-            token_start = token.extent.start.column - column_offset
-            token_end = token.extent.end.column - column_offset
-
-            # Attempt to replace identifier token with template
-            if token.cursor == target.node: 
-                if token_kind == "identifier":
-                    new_value = new_value[0:token_start] + "{" + f"{len(new_children)}" + "}" + new_value[token_end:]
-                    new_children = new_children + [self.replacement.apply(target)]
-                    column_offset += len("{0}") - (token_end - token_start)
-            else: 
-                column_offset += len("{0}")
-
-        # Generate new node
-        new_node = SourceNode.copy(target)
-        new_node.children = new_children
-        new_node.value = new_value
-        return new_node
+        return SourceNodeModifier.replace_token(target, self.targetToken, self.replacement)
     
     def getChildren(self) -> list[ModificationNode]:
         return [self.replacement]
+
+class ReplaceTokenKindNode(ReplaceTokenNode):
+    def __init__(self, targetNode: SourceNode, targetTokenKind: str, replacement: ModificationNode) -> None:
+        targetToken = next((t for t in targetNode.node_tokens if get_token_kind(t) == targetTokenKind), None)
+        if targetNode is None: 
+            raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
+        super().__init__(targetNode, targetToken, replacement)
 
 class ReplaceChildren(ModificationNode): 
     def __init__(self, target: SourceNode, replacements: list[ModificationNode]) -> None:
@@ -298,7 +371,7 @@ class TemplatedNode(ModificationNode):
     
     def apply(self, node: SourceNode) -> SourceNode:
         new_children = [r.apply(node) for r in self.replacements]
-        return SourceNode.create(self.template, None, new_children)
+        return SourceNode.create(None, self.template, [], new_children)
     
     def getChildren(self) -> list[ModificationNode]:
         return self.replacements
@@ -315,15 +388,57 @@ class TemplatedReplaceNode(ModificationNode):
     
     def apply(self, node: SourceNode) -> SourceNode:
         new_children = [r.apply(node) for r in self.replacements]
-        return SourceNode.create(self.template, None, new_children)
+        return SourceNode.create(None, self.template, [], new_children)
     
     def getChildren(self) -> list[ModificationNode]:
         return self.replacements
 
+class InsertAfterTokenNode(ModificationNode): 
+    """Replaces identififer token that is part of target node"""
+    def __init__(self, targetNode: SourceNode, targetToken, insertions: ModificationNode|list[ModificationNode]) -> None:
+        super().__init__()
+        self.targetNode = targetNode
+        self.targetToken = targetToken
+        self.insertions = insertions
+
+        if not any(t for t in targetNode.get_tokens() if t == targetToken):
+            raise Exception(f"Target node {targetNode.id} does not contain target token")
+        
+    def isApplicable(self, node: SourceNode) -> bool:
+        return SourceNode.equals(node, self.targetNode)
+    
+    def apply(self, target: SourceNode) -> SourceNode:
+        insertion_texts = [f"{i.apply(target)}" for i in self.insertions]
+        insertion_nodes = [SourceToken.create(None, t) for t in insertion_texts]
+        insertion_nodes.reverse()
+
+        buffer = target
+        for insertion_node in insertion_nodes: 
+            buffer = SourceNode.insert_after_token(buffer, self.targetToken, insertion_node)
+        return buffer
+    
+    def getChildren(self) -> list[ModificationNode]:
+        return [self.replacement]
+
+class InsertAfterTokenKindNode(InsertAfterTokenNode):
+    def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: ModificationNode) -> None:
+        targetToken = next((t for t in targetNode.node_tokens if get_token_kind(t) == targetTokenKind), None)
+        if targetNode is None: 
+            raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
+        super().__init__(targetNode, targetToken, insertion)
+
+class InsertBeforeStatementsNode(InsertAfterTokenNode):
+    """Inserts insertions just after openening brackets"""
+    def __init__(self, target: SourceNode, insertions: ModificationNode|list[ModificationNode]):
+        first_token = target.get_tokens()[0]
+        insertions = insertions if isinstance(insertions, list) else [insertions]
+
+        super().__init__(target, first_token, insertions)
+
 # Based on pycparser's NodeVisitor
 class SourceTreeVisitor:
     def visit(self, source_node: SourceNode): 
-        node_type = get_node_type(source_node.node)
+        node_type = SourceNodeResolver.get_type(source_node)
         node_method_name = 'visit_' + node_type
         node_method = getattr(self, node_method_name, self.generic_visit)
         node_result = node_method(source_node)
@@ -354,7 +469,7 @@ class SourceTreeModifier:
 
 class ReplaceAdditionSourceTreeVisitor(SourceTreeVisitor):
     def visit_BinaryOperator(self, source_node: SourceNode) -> list[ModificationNode]:
-        if get_node_binary_operator(source_node.node) != '+':
+        if SourceNodeResolver.get_binary_operator(source_node) != '+':
             return []
         
         lvalue = self.visit(source_node.children[0])
@@ -379,7 +494,7 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
 
     def visit_VarDecl(self, source_node) -> list[ModificationNode]: 
         if (source_node.node.spelling == self.target):
-            return [ReplaceIdentifierNode(source_node, ConstantNode(self.replacement))]
+            return [ReplaceTokenKindNode(source_node, 'identifier', ConstantNode(self.replacement))]
         else: 
             return []
 
@@ -394,20 +509,14 @@ class NotifySourceTreeVisitor(SourceTreeVisitor):
         super().__init__()
         self.declarations: list[ModificationNode] = []
 
-    def visit_FunctionDecl(self, source_node) -> list[ModificationNode]:
-        new_children = flatten([self.visit(c) for c in source_node.children])
+    def visit_FunctionDecl(self, source_node: SourceNode) -> list[ModificationNode]:
+        modifications = flatten([self.visit(c) for c in source_node.children])
+        function_body_node = source_node.children[0]
 
-        function_body = source_node.children[0]
-        number_of_declarations = len(self.declarations)
-        number_of_statements = len(function_body.children)
-        placeholders = ["{" + f"{i}" + "}" for i in range(0, number_of_declarations + number_of_statements)]
-        template = "{\n  " + "\n  ".join(placeholders) + "\n}"
-
-        return new_children + [TemplatedReplaceNode(
-            function_body, 
-            template,
-            self.declarations + [CopyNode(c) for c in function_body.children]
-        )]
+        return [InsertBeforeStatementsNode(
+            function_body_node,
+            self.declarations
+        )] + modifications
 
     def visit_DeclRefExpr(self, source_node) -> list[ModificationNode]:
         temp = f"temp{len(self.declarations)}"
