@@ -76,7 +76,7 @@ class TestFunctions(unittest.TestCase):
         
         self.assertEqual(type(output), TemplatedReplaceNode)
         self.assertEqual(type(output_children[0]), TemplatedNode)
-        self.assertEqual(type(output_grandchildren[0], TemplatedNode))
+        self.assertEqual(type(output_grandchildren[0]), TemplatedNode)
 
         self.assertEqual(output.template, "{0}, {1}")
         self.assertEqual(output_children[0].template, "{0}, {1}")

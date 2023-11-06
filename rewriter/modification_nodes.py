@@ -144,7 +144,7 @@ class ReplaceTokenKindNode(ReplaceTokenNode):
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
         super().__init__(targetNode, targetToken, replacement)
 
-class ReplaceChildren(ModificationNode): 
+class ReplaceChildrenNode(ModificationNode): 
     def __init__(self, target: SourceNode, replacements: list[ModificationNode]) -> None:
         super().__init__()
         self.target = target
@@ -261,8 +261,8 @@ def template_node(template, *args):
     else: 
         return template_node(
             template,
-            template_node(template, args[0], *args[:-1]),
-            *args[-1]
+            template_node(template, *args[:-1]),
+            args[-1]
         )
 
 def template_replace_node(template, target, *args):
@@ -281,6 +281,7 @@ def template_replace_node(template, target, *args):
             template_node(template, *args[:-1]),
             args[-1],
         )
+    
 
 def assignment_node(*args):
     return template_node("{0} = {1}", *args)
