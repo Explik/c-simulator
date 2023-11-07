@@ -132,8 +132,7 @@ class SourceNodeResolver:
     def get_binary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
         assert len(node.children) == 2
-        left_offset = len([i for i in node.children[0].tokens])
-        return [i for i in node.tokens][left_offset].token.spelling
+        return node.get_tokens()[0].token.spelling
 
 class SourceTreeCreator: 
     def create(self, code, node):
@@ -142,7 +141,7 @@ class SourceTreeCreator:
         value_buffer = []
 
         children = list(node.get_children())
-        tokens = list([t for t in node.get_tokens() if t.cursor == node])
+        tokens = list([t for t in node.get_tokens() if t.cursor.hash == node.hash])
         child_locations = [(i, c, get_code_index(code, c.extent.start), get_code_index(code, c.extent.end)) for i,c in enumerate(children)]
         token_locations = [(i, t, get_code_index(code, t.extent.start), get_code_index(code, t.extent.end)) for i,t in enumerate(tokens)]
         (startIndex, endIndex) = get_code_indexes(code, node.extent)

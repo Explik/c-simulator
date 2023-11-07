@@ -160,7 +160,7 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
         return comma_replace_node(
             source_node, 
             assignment_node(temp_variable, CopyNode(source_node)),
-            ConstantNode("notify()"),
+            ConstantNode("notify(\"a=eval\")"),
             temp_variable
         )
     
@@ -194,10 +194,25 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
                 [lvalue, rvalue]
             )
         ))
-        buffer.append(ConstantNode("notify()"))
+        buffer.extend(self.create_notify_nodes(source_node))
         buffer.append(temp_variable)
         
         return comma_replace_node(
             source_node, 
             *buffer
         )
+    
+    def create_notify_nodes(self, source_nodes: SourceNode) -> list[ModificationNode]:
+        return [ConstantNode("notify(\"a=eval\")")]
+
+class PartialTreeVisitor_AssignmentOperator(PartialTreeVisitor_BinaryOperator):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "BinaryOperator" and "=" in SourceNodeResolver.get_binary_operator(source_node) 
+    
+    def create_notify_nodes(self, source_nodes: SourceNode) -> list[ModificationNode]:
+        return [
+            ConstantNode("notify(\"a=eval\")"),
+            ConstantNode("notify(\"a=assign\")")
+        ]
+
+

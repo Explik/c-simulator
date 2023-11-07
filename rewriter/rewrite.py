@@ -1,8 +1,8 @@
 import sys
 import clang.cindex
-from ast_visitors import AstPrinter, AstVisitor
+from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import NotifySourceTreeVisitor, ReplaceAdditionSourceTreeVisitor, ReplaceIdentifierSourceTreeVisitor, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_AssignmentOperator, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_DeclRefExpr, SourceTreeModifier
 
 def get_code(file_name): 
     f = open(file_name)
@@ -25,17 +25,15 @@ SourceTreePrinter(False).print(source_root)
 SourceTreePrinter(True).print(source_root)
 
 print('Generating AST changes')
-modification_root = NotifySourceTreeVisitor().visit(source_root)
+partial_visitors = [
+    PartialTreeVisitor_AssignmentOperator(),
+    PartialTreeVisitor_BinaryOperator(),
+    PartialTreeVisitor_DeclRefExpr()
+]
+composite_visitor = CompositeTreeVisitor(partial_visitors)
+modification_root = composite_visitor.visit(source_root)
 
 print('Applying AST changes')
-modified_source_root = SourceTreeModifier(modification_root).visit(source_root)
+modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
 
 print(f"{modified_source_root}")
-
-#modification = TransformationVisitor([IdTransformation()]).visit(tu.cursor)
-#ModificationPrinter().print(modification)
-#print("\n")
-
-#print('Applying AST changes')
-#newCode = modification.apply(code)
-#print(newCode)
