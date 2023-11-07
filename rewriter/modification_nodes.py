@@ -282,7 +282,6 @@ def template_replace_node(template, target, *args):
             args[-1],
         )
     
-
 def assignment_node(*args):
     return template_node("{0} = {1}", *args)
 
@@ -294,3 +293,15 @@ def comma_node(*args):
 
 def comma_replace_node(target, *args): 
     return template_replace_node("{0}, {1}", target, *args)
+
+def compound_replace_node(target, *args):
+    template = "{\n"
+    for i in range(0, len(args)):
+        template += "  {" + f"{i}" + "}\n" 
+    template += "}"
+
+    return TemplatedReplaceNode(
+        target,
+        template,
+        args
+    )

@@ -129,6 +129,12 @@ class SourceNodeResolver:
         return "".join(x.capitalize() for x in kind.lower().split("_"))
 
     @staticmethod
+    def get_unary_operator(node: SourceNode) -> str:
+        # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
+        assert len(node.children) == 1
+        return node.get_tokens()[0].token.spelling
+
+    @staticmethod
     def get_binary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
         assert len(node.children) == 2

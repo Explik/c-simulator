@@ -1,7 +1,7 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundNode, ConstantNode, CopyNode, InsertBeforeStatementsNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_replace_node
+from modification_nodes import CompoundNode, ConstantNode, CopyNode, InsertBeforeStatementsNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_replace_node, compound_replace_node
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -26,7 +26,7 @@ class SourceTreeVisitor:
         elif len(source_node_modifications_filtered) == 1: 
             return source_node_modifications_filtered[0]
         else: 
-            return CompoundNode(source_node_modifications_filtered)
+            return CompoundNode(None, source_node_modifications_filtered)
 
 class SourceTreeModifier: 
     def __init__(self, modification_nodes: ModificationNode) -> None:
@@ -114,7 +114,7 @@ class NotifySourceTreeVisitor(SourceTreeVisitor):
 # Composite visitors 
 class PartialTreeVisitor():
     def __init__(self) -> None:
-        self.push_variable: Callable[[], ModificationNode]|None = None
+        self.push_variable: Callable[[SourceNode], ModificationNode]|None = None
         self.pop_variables: Callable[[], list[ModificationNode]]|None = None
         self.callback: Callable[[SourceNode], ModificationNode]|None = None
 
@@ -141,9 +141,10 @@ class CompositeTreeVisitor(SourceTreeVisitor):
         else: 
             return super().generic_visit(source_node)
     
-    def push_variable(self) -> ModificationNode:
+    def push_variable(self, source_node: SourceNode) -> ModificationNode:
+        variable_type = source_node.node.type.spelling
         variable_name = f"temp{len(self.variables)}"
-        variable = ConstantNode(f"int {variable_name}")
+        variable = ConstantNode(f"{variable_type} {variable_name};")
         self.variables.append(variable)
         return ConstantNode(variable_name)
     
@@ -155,7 +156,7 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
         return SourceNodeResolver.get_type(source_node) == "DeclRefExpr"
 
     def visit(self, source_node: SourceNode):
-        temp_variable = self.push_variable()
+        temp_variable = self.push_variable(source_node)
 
         return comma_replace_node(
             source_node, 
@@ -163,6 +164,51 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
             ConstantNode("notify(\"a=eval\")"),
             temp_variable
         )
+    
+class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "UnaryOperator"
+
+    def visit(self, source_node: SourceNode):
+        buffer = []
+        children = source_node.get_children()
+        transformed_operand = self.callback(children[0]) 
+        
+        if transformed_operand is not None: 
+            buffer.append(transformed_operand.getChildren()[0])
+            lvalue = transformed_operand.getChildren()[1]
+        else: 
+            lvalue = CopyNode(children[0])
+
+        temp_variable = self.push_variable(source_node)
+        buffer.append(assignment_node(
+            temp_variable, 
+            ReplaceChildrenNode(source_node, [lvalue])
+        ))
+        buffer.extend(self.create_notify_nodes(source_node))
+        buffer.append(temp_variable)
+        
+        return comma_replace_node(
+            source_node, 
+            *buffer
+        )
+    
+    def create_notify_nodes(self, source_nodes: SourceNode) -> list[ModificationNode]:
+        return [ConstantNode("notify(\"a=eval\")")]
+
+class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperator):
+    def can_visit(self, source_node: SourceNode):
+        if (SourceNodeResolver.get_type(source_node) != "UnaryOperator"):
+            return False
+        
+        operator = SourceNodeResolver.get_unary_operator(source_node) 
+        return operator == "++" or operator == "--"
+    
+    def create_notify_nodes(self, source_nodes: SourceNode) -> list[ModificationNode]:
+        return [
+            ConstantNode("notify(\"a=eval\")"),
+            ConstantNode("notify(\"a=assign\")")
+        ]
     
 class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
@@ -186,7 +232,7 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
         else:
             rvalue = CopyNode(children[1])
 
-        temp_variable = self.push_variable()
+        temp_variable = self.push_variable(source_node)
         buffer.append(assignment_node(
             temp_variable, 
             ReplaceChildrenNode(
@@ -205,7 +251,7 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def create_notify_nodes(self, source_nodes: SourceNode) -> list[ModificationNode]:
         return [ConstantNode("notify(\"a=eval\")")]
 
-class PartialTreeVisitor_AssignmentOperator(PartialTreeVisitor_BinaryOperator):
+class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor_BinaryOperator):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "BinaryOperator" and "=" in SourceNodeResolver.get_binary_operator(source_node) 
     
@@ -214,5 +260,36 @@ class PartialTreeVisitor_AssignmentOperator(PartialTreeVisitor_BinaryOperator):
             ConstantNode("notify(\"a=eval\")"),
             ConstantNode("notify(\"a=assign\")")
         ]
+    
+class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "CallExpr" and source_node.node.type.spelling != "void"
 
+    def visit(self, source_node: SourceNode):
+        temp_variable = self.push_variable(source_node)
 
+        return comma_replace_node(
+            source_node, 
+            assignment_node(temp_variable, CopyNode(source_node)),
+            ConstantNode("notify(\"a=eval\")"),
+            temp_variable
+        )
+
+class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
+    def can_visit(self, source_node: SourceNode):
+        if (SourceNodeResolver.get_type(source_node) != "FunctionDecl"):
+            return False
+        
+        children = source_node.get_children()
+        return any(children) and SourceNodeResolver.get_type(children[0]) == "CompoundStmt"
+
+    def visit(self, source_node: SourceNode):
+        function_body_node = source_node.get_children()[0]
+        modifications = [self.callback(c) or CopyNode(c) for c in function_body_node.get_children()]
+        variables = self.pop_variables()
+        statements = variables + modifications
+
+        return compound_replace_node(
+            function_body_node, 
+            *statements
+        )

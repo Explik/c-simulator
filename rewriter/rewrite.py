@@ -2,7 +2,7 @@ import sys
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_AssignmentOperator, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_DeclRefExpr, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, SourceTreeModifier
 
 def get_code(file_name): 
     f = open(file_name)
@@ -26,8 +26,12 @@ SourceTreePrinter(True).print(source_root)
 
 print('Generating AST changes')
 partial_visitors = [
-    PartialTreeVisitor_AssignmentOperator(),
+    PartialTreeVisitor_FunctionDecl(),
+    PartialTreeVisitor_CallExpr(),
+    PartialTreeVisitor_BinaryOperator_Assignment(),
     PartialTreeVisitor_BinaryOperator(),
+    PartialTreeVisitor_UnaryOperator_Assignment(),
+    PartialTreeVisitor_UnaryOperator(),
     PartialTreeVisitor_DeclRefExpr()
 ]
 composite_visitor = CompositeTreeVisitor(partial_visitors)
