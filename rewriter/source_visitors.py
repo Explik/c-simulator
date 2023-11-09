@@ -243,13 +243,33 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
         return SourceNodeResolver.get_type(source_node) == "CallExpr" and source_node.node.type.spelling != "void"
 
     def visit(self, source_node: SourceNode):
+        buffer_comma = []
+        buffer_parameters = []
+        identifier = source_node.get_children()[0]
+        parameters = source_node.get_children()[1:]
+        transformed_parameters = [(p, self.callback(p)) for p in parameters]
+
+        for transformed_parameter in transformed_parameters:
+            if transformed_parameter[1] is None: 
+                buffer_parameters.append(CopyNode(transformed_parameter[0]))
+            else: 
+                parameter_children = transformed_parameter[1].get_children()
+                buffer_comma.append(parameter_children[0])
+                buffer_parameters.append(parameter_children[1])
+
         temp_variable = self.push_variable(source_node)
+        transformed_children = [CopyNode(identifier)] + buffer_parameters
+        transformed_node = copy_replace_node(
+            source_node, 
+            ReplaceChildrenNode(source_node, transformed_children)
+        )
+        buffer_comma.append(assignment_node(temp_variable, transformed_node))
+        buffer_comma.append(ConstantNode("notify(\"a=eval\")"))
+        buffer_comma.append(temp_variable)
 
         return comma_replace_node(
             source_node, 
-            assignment_node(temp_variable, CopyNode(source_node)),
-            ConstantNode("notify(\"a=eval\")"),
-            temp_variable
+            *buffer_comma
         )
 
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
