@@ -263,7 +263,8 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         function_body_node = source_node.get_children()[0]
         variables = self.pop_variables()
-        statements = [copy_replace_node(c, self.callback(c)) for c in function_body_node.get_children()]
+        transformed_children = [(c, self.callback(c)) for c in function_body_node.get_children()]
+        statements = [copy_replace_node(c[0], c[1]) if c[1] is not None else CopyNode(c[0]) for c in transformed_children]
         
         return compound_replace_node(
             function_body_node, 

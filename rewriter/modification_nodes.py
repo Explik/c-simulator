@@ -1,6 +1,13 @@
 import re
 from source_nodes import SourceNode, SourceToken
 
+def assert_type(obj, type): 
+    assert isinstance(obj, type), f"{obj} is not of type {type}"
+
+def assert_list_type(obj, item_type):
+    is_list = isinstance(obj, tuple) or isinstance(obj, list)
+    assert is_list and all([isinstance(i, item_type) for i in obj]), f"{obj} is not of type {item_type}"
+
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
     return [item for sublist in l for item in sublist]
@@ -33,6 +40,8 @@ class ReplaceModificationNode(ModificationNode):
 # Insert nodes
 class ConstantNode(InsertModificationNode):
     def __init__(self, value: str) -> None:
+        assert isinstance(value, str)
+
         super().__init__()
         self.value = value
     
@@ -41,6 +50,8 @@ class ConstantNode(InsertModificationNode):
 
 class CopyNode(InsertModificationNode):
     def __init__(self, source: SourceNode) -> None:
+        assert isinstance(source, SourceNode)
+
         super().__init__()
         self.source = source
     
@@ -49,6 +60,9 @@ class CopyNode(InsertModificationNode):
 
 class CopyReplaceNode(InsertModificationNode):
     def __init__(self, source: SourceNode, replacements: list[ReplaceModificationNode]) -> None:
+        assert_type(source, SourceNode)
+        assert_list_type(replacements, ReplaceModificationNode)
+
         super().__init__()
         self.source = source
         self.replacements = replacements
@@ -75,6 +89,9 @@ class CopyReplaceNode(InsertModificationNode):
 
 class TemplatedNode(InsertModificationNode):
     def __init__(self, template: str, insertions: list[InsertModificationNode]) -> None:
+        assert_type(template, str)
+        assert_list_type(insertions, InsertModificationNode)
+
         super().__init__()
         self.template = template
         self.insertions = insertions
@@ -84,14 +101,17 @@ class TemplatedNode(InsertModificationNode):
         return SourceNode.create(None, self.template, [], template_values)
     
     def get_children(self) -> list[ModificationNode]:
-        return self.replacements
+        return self.insertions
 
 # Replace nodes
 class ReplaceNode(ReplaceModificationNode):
-    def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
+    def __init__(self, target: SourceNode, insertion: InsertModificationNode) -> None:
+        assert_type(target, SourceNode)
+        assert_type(insertion, InsertModificationNode)
+
         super().__init__() 
         self.target = target
-        self.replacement = replacement
+        self.replacement = insertion
 
     def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.target)
@@ -104,11 +124,14 @@ class ReplaceNode(ReplaceModificationNode):
 
 class ReplaceTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
-    def __init__(self, targetNode: SourceNode, targetToken, replacement: ModificationNode) -> None:
+    def __init__(self, targetNode: SourceNode, targetToken, insertion: InsertModificationNode) -> None:
+        assert_type(targetNode, SourceNode)
+        assert_type(insertion, InsertModificationNode)
+        
         super().__init__()
         self.targetNode = targetNode
         self.targetToken = targetToken
-        self.replacement = replacement
+        self.insertion = insertion
 
         if not any(t for t in targetNode.node_tokens if t == targetToken):
             raise Exception(f"Target node {targetNode.id} does not contain target token")
@@ -117,10 +140,10 @@ class ReplaceTokenNode(ReplaceModificationNode):
         return SourceNode.equals(node, self.targetNode)
     
     def apply(self, target: SourceNode) -> SourceNode:
-        return SourceNode.replace_token(target, self.targetToken, self.replacement)
+        return SourceNode.replace_token(target, self.targetToken, self.insertion)
     
     def get_children(self) -> list[ModificationNode]:
-        return [self.replacement]
+        return [self.insertion]
 
 class ReplaceTokenKindNode(ReplaceTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, replacement: ModificationNode) -> None:
@@ -131,6 +154,9 @@ class ReplaceTokenKindNode(ReplaceTokenNode):
 
 class ReplaceChildrenNode(ReplaceModificationNode): 
     def __init__(self, target: SourceNode, insertions: list[InsertModificationNode]) -> None:
+        assert_type(target, SourceNode)
+        assert_list_type(insertions, InsertModificationNode)
+        
         super().__init__()
         self.target = target
         self.insertions = insertions
@@ -156,7 +182,10 @@ class ReplaceChildrenNode(ReplaceModificationNode):
         return self.insertions
 
 class CompoundReplaceNode(ReplaceModificationNode):
-    def __init__(self, target: SourceNode|None, modifications: list[ModificationNode]) -> None:
+    def __init__(self, target: SourceNode|None, modifications: list[ReplaceModificationNode]) -> None:
+        assert_type(target, SourceNode)
+        assert_list_type(modifications, ReplaceModificationNode)
+
         super().__init__()
         self.target = target
         self.modifications = modifications
@@ -210,6 +239,10 @@ class CompoundReplaceNode(ReplaceModificationNode):
 
 class TemplatedReplaceNode(ReplaceModificationNode): 
     def __init__(self, target: SourceNode, template: str, insertions: list[InsertModificationNode]) -> None:
+        assert_type(target, SourceNode)
+        assert_type(template, str)
+        assert_list_type(insertions, InsertModificationNode)
+
         super().__init__()
         self.target = target
         self.template = template
@@ -228,6 +261,8 @@ class TemplatedReplaceNode(ReplaceModificationNode):
 class InsertAfterTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
     def __init__(self, targetNode: SourceNode, targetToken, insertions: ModificationNode|list[ModificationNode]) -> None:
+        assert_type(targetNode, SourceNode)
+        
         super().__init__()
         self.targetNode = targetNode
         self.targetToken = targetToken
