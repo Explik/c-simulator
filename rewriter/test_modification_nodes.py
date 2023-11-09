@@ -25,7 +25,7 @@ class TestFunctions(unittest.TestCase):
             ConstantNode("target"), 
             *input
         )
-        output_children = output.getChildren()
+        output_children = output.get_children()
         
         self.assertEqual(type(output), TemplatedReplaceNode)
         self.assertEqual(output.template, "{0}, {1}")
@@ -44,8 +44,8 @@ class TestFunctions(unittest.TestCase):
             ConstantNode("target"), 
             *input
         )
-        output_children = output.getChildren()
-        output_grandchildren = output_children[0].getChildren()
+        output_children = output.get_children()
+        output_grandchildren = output_children[0].get_children()
         
         self.assertEqual(type(output), TemplatedReplaceNode)
         self.assertEqual(type(output_children[0]), TemplatedNode)
@@ -70,9 +70,9 @@ class TestFunctions(unittest.TestCase):
             ConstantNode("target"), 
             *input
         )
-        output_children = output.getChildren()
-        output_grandchildren = output_children[0].getChildren()
-        output_greatgrandchildren = output_grandchildren[0].getChildren()
+        output_children = output.get_children()
+        output_grandchildren = output_children[0].get_children()
+        output_greatgrandchildren = output_grandchildren[0].get_children()
         
         self.assertEqual(type(output), TemplatedReplaceNode)
         self.assertEqual(type(output_children[0]), TemplatedNode)

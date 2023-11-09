@@ -17,107 +17,92 @@ def get_token_equals(token1, token2):
         
 # Basic nodes
 class ModificationNode():
-    def isApplicable(self, node: SourceNode) -> bool:
+    def get_children(self) -> list['ModificationNode']:
+        return []
+
+class InsertModificationNode(ModificationNode):
+    def apply(self) -> SourceNode:
+        raise Exception("Not implemented")
+    
+class ReplaceModificationNode(ModificationNode):
+    def is_applicable(self, node: SourceNode) -> bool:
         return False
     def apply(self, node: SourceNode) -> SourceNode:
         raise Exception("Not implemented")
-    
-    def getChildren(self) -> list['ModificationNode']:
-        return []
 
-class ConstantNode(ModificationNode):
+# Insert nodes
+class ConstantNode(InsertModificationNode):
     def __init__(self, value: str) -> None:
         super().__init__()
         self.value = value
-
-    def isApplicable(self, node: SourceNode) -> bool:
-        """Constant nodes are not connected to source tree and can therefore not be applied to it""" 
-        return False
     
-    def apply(self, node: SourceNode) -> SourceNode:
+    def apply(self) -> SourceNode:
         return SourceNode.create(None, self.value, [], [])
 
-class CopyNode(ModificationNode):
+class CopyNode(InsertModificationNode):
     def __init__(self, source: SourceNode) -> None:
         super().__init__()
         self.source = source
     
-    def isApplicable(self, node: SourceNode) -> bool:
-        """Copy nodes are not connected to source tree and can therefore not be applied to it""" 
-        return False 
-    
-    def apply(self, node: SourceNode) -> SourceNode:
+    def apply(self) -> SourceNode:
         return SourceNode.copy(self.source)
 
-class CompoundNode(ModificationNode):
-    def __init__(self, target: SourceNode|None, modifications: list[ModificationNode]) -> None:
+class CopyReplaceNode(InsertModificationNode):
+    def __init__(self, source: SourceNode, replacements: list[ReplaceModificationNode]) -> None:
         super().__init__()
-        self.target = target
-        self.modifications = modifications
+        self.source = source
+        self.replacements = replacements
 
-    def isApplicable(self, node: SourceNode) -> bool:
-        """If no target is specified, finds last common ancestor of modification-applicable nodes"""
-        if self.target is not None:
-            return SourceNode.equals(node, self.target)
-        
-        # Verifies that all modifications are applicable to current node
-        if not CompoundNode.isApplicableCommonAncestor(node, self.modifications): 
-            return False
-        
-        # Verifies that all modifications are not applicable to any children 
-        for child in node.children: 
-            if CompoundNode.isApplicableCommonAncestor(child, self.modifications):
-                return False
-        
-        self.target = node
-        return True
-
-    def apply(self, node: SourceNode) -> SourceNode:
-        new_children = [self.apply(c) for c in node.children]
-        new_source_node = SourceNode.copy(node)
+    def apply(self) -> SourceNode:
+        return self.apply_to(self.source)
+    
+    def apply_to(self, source_node: SourceNode):
+        # Depth first replacement
+        new_children = [self.apply_to(c) for c in source_node.get_children()]
+        new_source_node = SourceNode.copy(source_node)
         new_source_node.children = new_children
 
-        modification = next((m for m in self.modifications if m.isApplicable(node)), None)
-        if modification is not None:
-            return modification.apply(new_source_node) 
+        replacement_node = next((r for r in self.replacements if r.is_applicable(source_node)), None)
+
+        # Apply modification if found
+        if replacement_node is not None:
+            return replacement_node.apply(new_source_node) 
         else: 
-            return node
+            return new_source_node
 
-    @staticmethod
-    def isApplicableCommonAncestor(node, modifications: list[ModificationNode]):
-        for modifications in modifications:
-            if not CompoundNode.isAnyDescendantApplicable(node, modifications):
-                return False
-            
-        return True
+    def get_children(self) -> list[ModificationNode]:
+        return self.replacements
 
-    @staticmethod
-    def isAnyDescendantApplicable(node: SourceNode, modification: ModificationNode):
-        if modification.isApplicable(node):
-            return True
+class TemplatedNode(InsertModificationNode):
+    def __init__(self, template: str, insertions: list[InsertModificationNode]) -> None:
+        super().__init__()
+        self.template = template
+        self.insertions = insertions
 
-        for child in node.children:
-            if CompoundNode.isAnyDescendantApplicable(child, modification):
-                return True
-            
-        return False
+    def apply(self) -> SourceNode:
+        template_values = [n.apply() for n in self.insertions]
+        return SourceNode.create(None, self.template, [], template_values)
+    
+    def get_children(self) -> list[ModificationNode]:
+        return self.replacements
 
-class ReplaceNode(ModificationNode):
+# Replace nodes
+class ReplaceNode(ReplaceModificationNode):
     def __init__(self, target: SourceNode, replacement: ModificationNode) -> None:
         super().__init__() 
         self.target = target
         self.replacement = replacement
 
-    def isApplicable(self, node: SourceNode) -> bool:
+    def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.target)
     
     def apply(self, node: SourceNode) -> SourceNode:
         return self.replacement.apply(node)
     
-    def getChildren(self) -> list[ModificationNode]:
+    def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
 
-class ReplaceTokenNode(ModificationNode): 
+class ReplaceTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
     def __init__(self, targetNode: SourceNode, targetToken, replacement: ModificationNode) -> None:
         super().__init__()
@@ -128,13 +113,13 @@ class ReplaceTokenNode(ModificationNode):
         if not any(t for t in targetNode.node_tokens if t == targetToken):
             raise Exception(f"Target node {targetNode.id} does not contain target token")
         
-    def isApplicable(self, node: SourceNode) -> bool:
+    def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.targetNode)
     
     def apply(self, target: SourceNode) -> SourceNode:
         return SourceNode.replace_token(target, self.targetToken, self.replacement)
     
-    def getChildren(self) -> list[ModificationNode]:
+    def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
 
 class ReplaceTokenKindNode(ReplaceTokenNode):
@@ -144,67 +129,103 @@ class ReplaceTokenKindNode(ReplaceTokenNode):
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
         super().__init__(targetNode, targetToken, replacement)
 
-class ReplaceChildrenNode(ModificationNode): 
-    def __init__(self, target: SourceNode, replacements: list[ModificationNode]) -> None:
+class ReplaceChildrenNode(ReplaceModificationNode): 
+    def __init__(self, target: SourceNode, insertions: list[InsertModificationNode]) -> None:
         super().__init__()
         self.target = target
-        self.replacements = replacements
+        self.insertions = insertions
 
         number_of_children = len(target.children)
-        if number_of_children != len(replacements):
+        if number_of_children != len(insertions):
             raise Exception(f"Expected {number_of_children} number of replacements")
         
-    def isApplicable(self, node: SourceNode) -> bool:
+    def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.target)
     
     def apply(self, node: SourceNode) -> SourceNode:
         new_children = []
         for i in range(0, len(node.children)): 
-            new_child = self.replacements[i].apply(node.children[i])
+            new_child = self.insertions[i].apply()
             new_children.append(new_child)
 
         new_node = SourceNode.copy(node)
         new_node.children = new_children
         return new_node
     
-    def getChildren(self) -> list[ModificationNode]:
-        return self.replacements
+    def get_children(self) -> list[ModificationNode]:
+        return self.insertions
 
-class TemplatedNode(ModificationNode):
-    def __init__(self, template: str, replacements: list[ModificationNode]) -> None:
+class CompoundReplaceNode(ReplaceModificationNode):
+    def __init__(self, target: SourceNode|None, modifications: list[ModificationNode]) -> None:
         super().__init__()
-        self.template = template
-        self.replacements = replacements
+        self.target = target
+        self.modifications = modifications
 
-    def isApplicable(self, node: SourceNode) -> bool:
-        """Templated nodes are not connected to source tree and can therefore not be applied to it""" 
-        return False 
-    
+    def is_applicable(self, node: SourceNode) -> bool:
+        """If no target is specified, finds last common ancestor of modification-applicable nodes"""
+        if self.target is not None:
+            return SourceNode.equals(node, self.target)
+        
+        # Verifies that all modifications are applicable to current node
+        if not CompoundReplaceNode.isApplicableCommonAncestor(node, self.modifications): 
+            return False
+        
+        # Verifies that all modifications are not applicable to any children 
+        for child in node.children: 
+            if CompoundReplaceNode.isApplicableCommonAncestor(child, self.modifications):
+                return False
+        
+        self.target = node
+        return True
+
     def apply(self, node: SourceNode) -> SourceNode:
-        new_children = [r.apply(node) for r in self.replacements]
-        return SourceNode.create(None, self.template, [], new_children)
-    
-    def getChildren(self) -> list[ModificationNode]:
-        return self.replacements
-    
-class TemplatedReplaceNode(ModificationNode): 
-    def __init__(self, target: SourceNode, template: str, replacements: list[ModificationNode]) -> None:
+        new_children = [self.apply(c) for c in node.children]
+        new_source_node = SourceNode.copy(node)
+        new_source_node.children = new_children
+
+        modification = next((m for m in self.modifications if m.is_applicable(node)), None)
+        if modification is not None:
+            return modification.apply(new_source_node) 
+        else: 
+            return node
+
+    @staticmethod
+    def isApplicableCommonAncestor(node, modifications: list[ModificationNode]):
+        for modifications in modifications:
+            if not CompoundReplaceNode.isAnyDescendantApplicable(node, modifications):
+                return False
+            
+        return True
+
+    @staticmethod
+    def isAnyDescendantApplicable(node: SourceNode, modification: ModificationNode):
+        if modification.is_applicable(node):
+            return True
+
+        for child in node.children:
+            if CompoundReplaceNode.isAnyDescendantApplicable(child, modification):
+                return True
+            
+        return False
+
+class TemplatedReplaceNode(ReplaceModificationNode): 
+    def __init__(self, target: SourceNode, template: str, insertions: list[InsertModificationNode]) -> None:
         super().__init__()
         self.target = target
         self.template = template
-        self.replacements = replacements
+        self.insertions = insertions
 
-    def isApplicable(self, node: SourceNode) -> bool:
+    def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.target)
     
     def apply(self, node: SourceNode) -> SourceNode:
-        new_children = [r.apply(node) for r in self.replacements]
+        new_children = [r.apply() for r in self.insertions]
         return SourceNode.create(None, self.template, [], new_children)
     
-    def getChildren(self) -> list[ModificationNode]:
-        return self.replacements
+    def get_children(self) -> list[ModificationNode]:
+        return self.insertions
 
-class InsertAfterTokenNode(ModificationNode): 
+class InsertAfterTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
     def __init__(self, targetNode: SourceNode, targetToken, insertions: ModificationNode|list[ModificationNode]) -> None:
         super().__init__()
@@ -215,7 +236,7 @@ class InsertAfterTokenNode(ModificationNode):
         if not any(t for t in targetNode.get_tokens() if t == targetToken):
             raise Exception(f"Target node {targetNode.id} does not contain target token")
         
-    def isApplicable(self, node: SourceNode) -> bool:
+    def is_applicable(self, node: SourceNode) -> bool:
         return SourceNode.equals(node, self.targetNode)
     
     def apply(self, target: SourceNode) -> SourceNode:
@@ -228,10 +249,9 @@ class InsertAfterTokenNode(ModificationNode):
             buffer = SourceNode.insert_after_token(buffer, self.targetToken, insertion_node)
         return buffer
     
-    def getChildren(self) -> list[ModificationNode]:
+    def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
 
-# Composite nodes 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: ModificationNode) -> None:
         targetToken = next((t for t in targetNode.node_tokens if get_token_kind(t) == targetTokenKind), None)
@@ -240,16 +260,11 @@ class InsertAfterTokenKindNode(InsertAfterTokenNode):
         
         super().__init__(targetNode, targetToken, insertion)
 
-class InsertBeforeStatementsNode(InsertAfterTokenNode):
-    """Inserts insertions just after openening brackets"""
-    def __init__(self, target: SourceNode, insertions: ModificationNode|list[ModificationNode]):
-        first_token = target.get_tokens()[0]
-        insertions = insertions if isinstance(insertions, list) else [insertions]
-
-        super().__init__(target, first_token, insertions)
-
 # Node creation functions 
 # Template functions are recursive by default
+def copy_replace_node(source: SourceNode, *args: list[ReplaceModificationNode]): 
+    return CopyReplaceNode(source, args)
+
 def template_node(template, *args): 
     if len(args) == 1: 
         raise Exception("Unexpected number of arguments")
