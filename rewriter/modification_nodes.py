@@ -4,6 +4,9 @@ from source_nodes import SourceNode, SourceToken
 def assert_type(obj, type): 
     assert isinstance(obj, type), f"{obj} is not of type {type}"
 
+def assert_type_or_none(obj, type):
+    assert obj is None or isinstance(obj, type), f"{obj} is not None or of type {type}"
+
 def assert_list_type(obj, item_type):
     is_list = isinstance(obj, tuple) or isinstance(obj, list)
     assert is_list and all([isinstance(i, item_type) for i in obj]), f"{obj} is not of type {item_type}"
@@ -183,7 +186,7 @@ class ReplaceChildrenNode(ReplaceModificationNode):
 
 class CompoundReplaceNode(ReplaceModificationNode):
     def __init__(self, target: SourceNode|None, modifications: list[ReplaceModificationNode]) -> None:
-        assert_type(target, SourceNode)
+        assert_type_or_none(target, SourceNode)
         assert_list_type(modifications, ReplaceModificationNode)
 
         super().__init__()
@@ -208,15 +211,21 @@ class CompoundReplaceNode(ReplaceModificationNode):
         return True
 
     def apply(self, node: SourceNode) -> SourceNode:
-        new_children = [self.apply(c) for c in node.children]
-        new_source_node = SourceNode.copy(node)
+        return self.apply_to(node)
+    
+    def apply_to(self, source_node: SourceNode):
+        # Depth first replacement
+        new_children = [self.apply_to(c) for c in source_node.get_children()]
+        new_source_node = SourceNode.copy(source_node)
         new_source_node.children = new_children
 
-        modification = next((m for m in self.modifications if m.is_applicable(node)), None)
-        if modification is not None:
-            return modification.apply(new_source_node) 
+        replacement_node = next((r for r in self.modifications if r.is_applicable(source_node)), None)
+
+        # Apply modification if found
+        if replacement_node is not None:
+            return replacement_node.apply(new_source_node) 
         else: 
-            return node
+            return new_source_node
 
     @staticmethod
     def isApplicableCommonAncestor(node, modifications: list[ModificationNode]):
