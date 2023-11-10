@@ -1,8 +1,9 @@
 import sys
+import json
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, NotifyDataSerializer, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_TranslationUnit, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, SourceTreeModifier
 
 def get_code(file_name): 
     f = open(file_name)
@@ -26,6 +27,7 @@ SourceTreePrinter(True).print(source_root)
 
 print('Generating AST changes')
 partial_visitors = [
+    #PartialTreeVisitor_TranslationUnit(),
     PartialTreeVisitor_FunctionDecl(),
     PartialTreeVisitor_CallExpr(),
     PartialTreeVisitor_BinaryOperator_Assignment(),
@@ -36,8 +38,11 @@ partial_visitors = [
 ]
 composite_visitor = CompositeTreeVisitor(partial_visitors)
 modification_root = composite_visitor.visit(source_root)
+notifications = composite_visitor.get_notifies()
+notification_json = NotifyDataSerializer().serialize_list(notifications)
 
 print('Applying AST changes')
 modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
 
 print(f"{modified_source_root}")
+print(notification_json)
