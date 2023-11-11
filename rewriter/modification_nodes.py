@@ -309,55 +309,63 @@ class InsertAfterTokenKindNode(InsertAfterTokenNode):
 def copy_replace_node(source: SourceNode, *args: list[ReplaceModificationNode]): 
     return CopyReplaceNode(source, args)
 
-def template_node(template, *args): 
+def template_node(template1, template2, *args): 
     if len(args) == 1: 
         raise Exception("Unexpected number of arguments")
     elif len(args) == 2:
         return TemplatedNode(
-            template,
+            template1,
             args
         )
     else: 
         return template_node(
-            template,
-            template_node(template, *args[:-1]),
+            template1,
+            template2,
+            template_node(template2, template2, *args[:-1]),
             args[-1]
         )
 
-def template_replace_node(template, target, *args):
+def template_replace_node(template1, template2, target, *args):
     if len(args) == 1: 
         raise Exception("Unexpected number of arguments")
     elif len(args) == 2:
         return TemplatedReplaceNode(
             target,
-            template,
+            template1,
             args
         )
     else: 
         return template_replace_node(
-            template,
+            template1,
+            template2,
             target, 
-            template_node(template, *args[:-1]),
+            template_node(template2, template2, *args[:-1]),
             args[-1],
         )
     
 def assignment_node(*args):
-    return template_node("{0} = {1}", *args)
+    return template_node("{0} = {1}", "{0} = {1}", *args)
 
 def assignment_replace_node(target, *args):
-    return template_replace_node("{0} = {1}", target, *args)
+    return template_replace_node("{0} = {1}", "{0} = {1}", target, *args)
 
 def comma_node(*args): 
-    return template_node("{0}, {1}", *args)
+    return template_node("{0}, {1}", "{0}, {1}", *args)
 
 def comma_node_with_parentheses(*args):
-    return template_node("({0}, {1})", *args)
+    return template_node("({0}, {1})", "{0}, {1}", *args)
 
 def comma_replace_node(target, *args): 
-    return template_replace_node("{0}, {1}", target, *args)
+    return template_replace_node("{0}, {1}", "{0}, {1}", target, *args)
+
+def comma_stmt_node(*args): 
+    return template_node("{0}, {1};", "{0}, {1}", *args)
+
+def comma_stmt_replace_node(target, *args): 
+    return template_replace_node("{0}, {1};", "{0}, {1}", target, *args) 
 
 def comma_replace_node_with_parentheses(target, *args): 
-    return template_replace_node("({0}, {1})", target, *args)
+    return template_replace_node("({0}, {1})", "{0}, {1}", target, *args)
 
 def compound_replace_node(target, *args):
     template = "{\n"

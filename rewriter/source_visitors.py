@@ -1,7 +1,7 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -10,6 +10,17 @@ def flatten(l):
 
 def is_first_expression(source_node: SourceNode):
     return source_node.parent is not None and SourceNodeResolver.get_type(source_node.parent) in ["CompoundStmt", "ForStmt", "ReturnStmt", "IfStmt"]
+
+def is_statement(source_node: SourceNode):
+    if source_node is None: 
+        return False 
+    
+    parent_type = SourceNodeResolver.get_type(source_node.parent)
+    if parent_type in ["CompoundStmt", "ReturnStmt"]:
+        return True
+    
+    parent_children = source_node.parent.get_children()
+    return parent_type in ["ForStmt"] and parent_children[-1] == source_node
 
 # Basic visitors 
 class SourceTreeVisitor:
@@ -238,7 +249,8 @@ class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
     
     def visit(self, source_node: SourceNode):
         notify_data = NotifyData.create_stat(source_node.parent)
-        return comma_replace_node(
+        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
+        return replace_node(
             source_node, 
             self.create_notify(notify_data),
             CopyNode(source_node)
@@ -263,7 +275,8 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
             temp_variable
         ])
 
-        return comma_replace_node(
+        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
+        return replace_node(
             source_node, 
             *buffer
         )
@@ -298,7 +311,8 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
         buffer.extend(self.create_notify_nodes(source_node, temp_variable, children[0]))
         buffer.append(temp_variable)
         
-        return comma_replace_node(
+        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
+        return replace_node(
             source_node, 
             *buffer
         )
@@ -370,7 +384,8 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
         buffer.extend(self.create_notify_nodes(source_node, temp_variable, children[0]))
         buffer.append(temp_variable)
         
-        return comma_replace_node(
+        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
+        return replace_node(
             source_node, 
             *buffer
         )
@@ -445,7 +460,8 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
         if len(buffer_comma) < 2:
             return None 
         
-        return comma_replace_node(
+        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
+        return replace_node(
             source_node, 
             *buffer_comma
         )
@@ -487,10 +503,10 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
             return False
         
         children = source_node.get_children()
-        return any(children) and SourceNodeResolver.get_type(children[0]) == "CompoundStmt"
+        return any(children) and SourceNodeResolver.get_type(children[-1]) == "CompoundStmt"
 
     def visit(self, source_node: SourceNode):
-        function_body_node = source_node.get_children()[0]
+        function_body_node = source_node.get_children()[-1]
         variables = self.pop_variables()
         transformed_children = [(c, self.callback(c)) for c in function_body_node.get_children()]
         statements = [copy_replace_node(c[0], c[1]) if c[1] is not None else CopyNode(c[0]) for c in transformed_children]

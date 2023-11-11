@@ -37,7 +37,7 @@ class SourceNode:
         return self.tokens
 
     def __eq__(self, node: object) -> bool:
-        if isinstance(node, SourceNode): 
+        if not(isinstance(node, SourceNode)): 
             return False
         return self.id == node.id
 
