@@ -40,10 +40,11 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     
     print('\nGenerating AST...')
     tu = clang.cindex.Index.create().parse(source_path)
-    AstPrinter().print(source_content, tu.cursor)
+    tu_filter = lambda n: n.location.file.name == source_path
+    AstPrinter(tu_filter).print(source_content, tu.cursor)
 
     print('\nGenerating source tree...')
-    source_root = SourceTreeCreator().create(source_content, tu.cursor)
+    source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
     SourceTreePrinter(False).print(source_root)
     SourceTreePrinter(True).print(source_root)
 

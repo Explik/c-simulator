@@ -143,12 +143,16 @@ class SourceNodeResolver:
         return node.get_tokens()[0].token.spelling
 
 class SourceTreeCreator: 
-    def create(self, code, node):
+    def __init__(self, filter = None) -> None:
+        self.filter = filter
+
+    def create(self, code, node, level = 0):
         """Recursively split code into segments based on node ranges"""
         token_buffer = []
         value_buffer = []
 
-        children = list(node.get_children())
+        use_filter = self.filter is not None and level == 0
+        children = list(filter(self.filter, node.get_children())) if use_filter else list(node.get_children())
         tokens = list([t for t in node.get_tokens() if t.cursor.hash == node.hash])
         child_locations = [(i, c, get_code_index(code, c.extent.start), get_code_index(code, c.extent.end)) for i,c in enumerate(children)]
         token_locations = [(i, t, get_code_index(code, t.extent.start), get_code_index(code, t.extent.end)) for i,t in enumerate(tokens)]
@@ -172,7 +176,7 @@ class SourceTreeCreator:
                 value_buffer += code[i]
                 i += 1
         
-        transformed_children = [self.create(code, n) for n in children]
+        transformed_children = [self.create(code, n, level + 1) for n in children]
         source_node = SourceNode.create(node, "".join(value_buffer), token_buffer, transformed_children)
         for child in source_node.get_children():
             child.parent = source_node
