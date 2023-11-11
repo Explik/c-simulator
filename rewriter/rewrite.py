@@ -4,7 +4,7 @@ import os
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, NotifyDataSerializer, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_TranslationUnit, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, NotifyDataSerializer, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_TranslationUnit, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl, SourceTreeModifier
 
 def read_file(file_name): 
     f = open(file_name)
@@ -51,12 +51,14 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     partial_visitors = [
         #PartialTreeVisitor_TranslationUnit(),
         PartialTreeVisitor_FunctionDecl(),
+        PartialTreeVisitor_VarDecl(),
         PartialTreeVisitor_CallExpr(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
         PartialTreeVisitor_UnaryOperator(),
-        PartialTreeVisitor_DeclRefExpr()
+        PartialTreeVisitor_DeclRefExpr(),
+        PartialTreeVisitor_GenericLiteral()
     ]
     composite_visitor = CompositeTreeVisitor(partial_visitors)
     modification_root = composite_visitor.visit(source_root)
@@ -84,7 +86,7 @@ if __name__ == "__main__":
     #    raise Exception("Sorry, please supply an input file")
 
     script_file = sys.argv[0]
-    input_file = #sys.argv[1]
+    input_file = sys.argv[1]
 
     # Generate temporary files 
     temp_c_path = get_path_with_extension(input_file, 'g.c')

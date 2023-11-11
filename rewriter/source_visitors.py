@@ -1,12 +1,15 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, compound_replace_node, copy_replace_node
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
     return [item for sublist in l for item in sublist]
+
+def is_first_expression(source_node: SourceNode):
+    return source_node.parent is not None and SourceNodeResolver.get_type(source_node.parent) in ["CompoundStmt", "ForStmt", "ReturnStmt", "IfStmt"]
 
 # Basic visitors 
 class SourceTreeVisitor:
@@ -113,10 +116,12 @@ class NotifyData():
         return n
 
     @staticmethod
-    def create_decl(source_node: SourceNode): 
+    def create_decl(source_node: SourceNode, value_node: ConstantNode): 
         NotifyData.counter += 1
-        n = NotifyData(NotifyData.counter, "(void*)0")
+        n = NotifyData(NotifyData.counter, f"&{value_node.value}")
         n.action = "decl" 
+        n.type = f"{source_node.get_tokens()[0]}"
+        n.identifier = f"{source_node.get_tokens()[1]}"
         return n
 
     @staticmethod
@@ -134,6 +139,21 @@ class NotifyData():
         ]
         n.type = source_node.node.type.spelling
         return n 
+    
+    @staticmethod
+    def create_stat(source_node: SourceNode):
+        extent = source_node.node.extent
+        
+        NotifyData.counter += 1
+        n = NotifyData(NotifyData.counter, "(void*)0")
+        n.action = "stat" 
+        n.location = [
+            extent.start.line, 
+            extent.start.column,
+            extent.end.line,
+            extent.end.column - 1
+        ]
+        return n 
 
 class NotifyDataSerializer():
     def serialize_list(self, notifications: list[NotifyData]):
@@ -144,9 +164,13 @@ class NotifyDataSerializer():
     def serialize(self, notification: NotifyData):
         buffer = dict()
         buffer["action"] = f"\"{notification.action}\""
-        buffer["location"] = f"{notification.location}"
-        buffer["dataType"] = f"\"{notification.type}\""
+
+        if (notification.action in ["assign", "eval", "decl"]):
+            buffer["dataType"] = f"\"{notification.type}\""
         
+        if (notification.action in ["assign", "eval", "stat"]):
+            buffer["location"] = f"{notification.location}"
+
         if (notification.action in ["assign", "decl"]):
             buffer["identifier"] = f"\"{notification.identifier}\""
 
@@ -203,20 +227,45 @@ class CompositeTreeVisitor(SourceTreeVisitor):
     
     def pop_variable(self) -> list[InsertModificationNode]:
         return self.variables
+
+class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        if source_node.parent is None:
+            return False 
+        
+        node_type = SourceNodeResolver.get_type(source_node)
+        return is_first_expression(source_node) and node_type in ["IntegerLiteral", "StringLiteral"]
     
+    def visit(self, source_node: SourceNode):
+        notify_data = NotifyData.create_stat(source_node.parent)
+        return comma_replace_node(
+            source_node, 
+            self.create_notify(notify_data),
+            CopyNode(source_node)
+        )
+
 class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "DeclRefExpr"
 
     def visit(self, source_node: SourceNode):
+        buffer = []
+
+        if is_first_expression(source_node):
+            notify_stat = NotifyData.create_stat(source_node)
+            buffer.append(self.create_notify(notify_stat))
+
         temp_variable = self.push_variable(source_node)
         notify_data = NotifyData.create_eval(source_node, temp_variable)
-
-        return comma_replace_node(
-            source_node, 
+        buffer.extend([
             assignment_node(temp_variable, CopyNode(source_node)),
             self.create_notify(notify_data),
             temp_variable
+        ])
+
+        return comma_replace_node(
+            source_node, 
+            *buffer
         )
     
 class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
@@ -225,9 +274,13 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         buffer = []
+
+        if is_first_expression(source_node):
+            notify_stat = NotifyData.create_stat(source_node)
+            buffer.append(self.create_notify(notify_stat))
+
         children = source_node.get_children()
         transformed_operand = self.transform_left(children[0]) 
-        
         if transformed_operand is not None: 
             buffer.append(transformed_operand.get_children()[0])
             lvalue = transformed_operand.get_children()[1]
@@ -283,6 +336,11 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         buffer = []
+
+        if is_first_expression(source_node):
+            notify_stat = NotifyData.create_stat(source_node)
+            buffer.append(self.create_notify(notify_stat))
+
         children = source_node.get_children()
         transformed_left = self.transform_left(children[0])
         transformed_right = self.callback(children[1])
@@ -318,7 +376,7 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
         )
     
     def transform_left(self, source_node: SourceNode):
-        return self.callback(source_node) 
+        return self.callback(source_node)
 
     def create_notify_nodes(self, source_nodes: SourceNode, value_node: SourceNode, identifier_node: SourceNode) -> list[InsertModificationNode]:
         notify_data_eval = NotifyData.create_eval(source_nodes, value_node)
@@ -353,9 +411,13 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
         buffer_parameters = []
         identifier = source_node.get_children()[0]
         parameters = source_node.get_children()[1:]
-        transformed_parameters = [(p, self.callback(p)) for p in parameters]
-
+        
+        if is_first_expression(source_node):
+            notify_stat = NotifyData.create_stat(source_node)
+            buffer_comma.append(self.create_notify(notify_stat))
+        
         # Capture parameter values 
+        transformed_parameters = [(p, self.callback(p)) for p in parameters]
         for transformed_parameter in transformed_parameters:
             if transformed_parameter[1] is None: 
                 buffer_parameters.append(CopyNode(transformed_parameter[0]))
@@ -387,7 +449,37 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
             source_node, 
             *buffer_comma
         )
+
+class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "VarDecl"
+
+    def visit(self, source_node: SourceNode):
+        child_buffer = []
         
+        notify_stat = NotifyData.create_stat(source_node)
+        child_buffer.append(self.create_notify(notify_stat))
+        
+        children = source_node.get_children()
+        transformed_operand = self.callback(children[0]) 
+        if transformed_operand is not None: 
+            child_buffer.append(transformed_operand.get_children()[0])
+            lvalue = transformed_operand.get_children()[1]
+
+            notify_decl = NotifyData.create_decl(source_node, lvalue)
+            child_buffer.append(self.create_notify(notify_decl))
+            child_buffer.append(lvalue)
+        else: 
+            temp_value = self.push_variable(source_node)
+            notify_decl = NotifyData.create_decl(source_node, temp_value)
+            child_buffer.append(assignment_node(temp_value, CopyNode(children[0])))
+            child_buffer.append(self.create_notify(notify_decl))
+            child_buffer.append(temp_value)
+
+        return ReplaceChildrenNode(
+            source_node,
+            [comma_node_with_parentheses(*child_buffer)]
+        )
 
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):

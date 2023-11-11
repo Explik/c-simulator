@@ -57,6 +57,7 @@ class SourceNode:
         s.node = node
         s.value = value
         s.tokens = tokens
+        s.parent = None
         s.children = children
         return s
 
@@ -67,6 +68,7 @@ class SourceNode:
         s.value = source.value
         s.node = source.node
         s.tokens = source.tokens
+        s.parent = source.parent
         s.children = source.children
         return s
     
@@ -171,7 +173,10 @@ class SourceTreeCreator:
                 i += 1
         
         transformed_children = [self.create(code, n) for n in children]
-        return SourceNode.create(node, "".join(value_buffer), token_buffer, transformed_children)
+        source_node = SourceNode.create(node, "".join(value_buffer), token_buffer, transformed_children)
+        for child in source_node.get_children():
+            child.parent = source_node
+        return source_node
 
 class SourceTreePrinter:
     def __init__(self, show_placeholders = False) -> None:

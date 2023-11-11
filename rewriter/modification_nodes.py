@@ -120,7 +120,7 @@ class ReplaceNode(ReplaceModificationNode):
         return SourceNode.equals(node, self.target)
     
     def apply(self, node: SourceNode) -> SourceNode:
-        return self.replacement.apply(node)
+        return self.replacement.apply()
     
     def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
@@ -350,8 +350,14 @@ def assignment_replace_node(target, *args):
 def comma_node(*args): 
     return template_node("{0}, {1}", *args)
 
+def comma_node_with_parentheses(*args):
+    return template_node("({0}, {1})", *args)
+
 def comma_replace_node(target, *args): 
     return template_replace_node("{0}, {1}", target, *args)
+
+def comma_replace_node_with_parentheses(target, *args): 
+    return template_replace_node("({0}, {1})", target, *args)
 
 def compound_replace_node(target, *args):
     template = "{\n"
