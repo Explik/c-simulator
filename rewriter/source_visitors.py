@@ -107,7 +107,7 @@ class NotifyData():
             extent.start.line, 
             extent.start.column,
             extent.end.line,
-            extent.end.column
+            extent.end.column - 1
         ]
         n.type = identifier_node.node.type.spelling
         return n
@@ -130,7 +130,7 @@ class NotifyData():
             extent.start.line, 
             extent.start.column,
             extent.end.line,
-            extent.end.column
+            extent.end.column - 1
         ]
         n.type = source_node.node.type.spelling
         return n 
@@ -226,7 +226,7 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         buffer = []
         children = source_node.get_children()
-        transformed_operand = self.callback(children[0]) 
+        transformed_operand = self.transform_left(children[0]) 
         
         if transformed_operand is not None: 
             buffer.append(transformed_operand.get_children()[0])
@@ -250,6 +250,9 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
             *buffer
         )
     
+    def transform_left(self, source_node: SourceNode): 
+        return self.callback(source_node)
+
     def create_notify_nodes(self, source_node: SourceNode, value_node: SourceNode, identifier_node: SourceNode) -> list[InsertModificationNode]:
         notify_data = NotifyData.create_eval(source_node, value_node)
         return [self.create_notify(notify_data)]
@@ -262,6 +265,9 @@ class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperat
         operator = SourceNodeResolver.get_unary_operator(source_node) 
         return operator == "++" or operator == "--"
     
+    def transform_left(self, source_node: SourceNode):
+        return None
+
     def create_notify_nodes(self, source_nodes: SourceNode, value_node: SourceNode, identifier_node: SourceNode) -> list[InsertModificationNode]:
         notify_data_eval = NotifyData.create_eval(source_nodes, value_node)
         notify_data_assign = NotifyData.create_assign(source_nodes, identifier_node)
@@ -278,7 +284,7 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         buffer = []
         children = source_node.get_children()
-        transformed_left = self.callback(children[0]) 
+        transformed_left = self.transform_left(children[0])
         transformed_right = self.callback(children[1])
         
         if transformed_left is not None: 
@@ -311,18 +317,24 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
             *buffer
         )
     
+    def transform_left(self, source_node: SourceNode):
+        return self.callback(source_node) 
+
     def create_notify_nodes(self, source_nodes: SourceNode, value_node: SourceNode, identifier_node: SourceNode) -> list[InsertModificationNode]:
         notify_data_eval = NotifyData.create_eval(source_nodes, value_node)
         return [self.create_notify(notify_data_eval)]
 
 class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor_BinaryOperator):
     def can_visit(self, source_node: SourceNode):
-        if SourceNodeResolver.get_type(source_node) != "BinaryOperator":
+        if SourceNodeResolver.get_type(source_node) not in ["BinaryOperator", "CompoundAssignmentOperator"]:
             return False 
         
         binary_operator = SourceNodeResolver.get_binary_operator(source_node)
         return binary_operator in ["=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="]
     
+    def transform_left(self, source_nodes: SourceNode): 
+        return None
+
     def create_notify_nodes(self, source_nodes: SourceNode, value_node: SourceNode, identifier_node: SourceNode) -> list[InsertModificationNode]:
         notify_data_eval = NotifyData.create_eval(source_nodes, value_node)
         notify_data_assign = NotifyData.create_assign(source_nodes, identifier_node)
