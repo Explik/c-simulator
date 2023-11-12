@@ -1,125 +1,103 @@
-from __future__ import print_function
-import json
 import sys
+import json
 import os
+import clang.cindex
+from ast_visitors import AstPrinter
+from source_nodes import SourceTreeCreator, SourceTreePrinter
+from source_visitors import CompositeTreeVisitor, NotifyDataSerializer, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_TranslationUnit, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl, SourceTreeModifier
 
-# This is not required if you've installed pycparser into
-# your site-packages/ with setup.py
-sys.path.extend(['.', '..'])
+def read_file(file_name): 
+    f = open(file_name)
+    buffer = f.read()
+    f.close()
+    return buffer
 
-import pycparser
-from pycparser import c_parser, c_ast, parse_file, c_generator
-from visitors import AssignmentTransformation, BinaryOpTransformation, CompoundTransformation, DeclTransformation, FileAstTransformation, FlattenVisitor, FuncCallTransformation, FuncDefTransformation, IdTransformation, NodeTransformation, NotifyCreator, NotifyVisitor, ParentVisitor, LocationVisitor, DeclarationVisitor, ExpressionTypeVisitor, StatementTranformation, TransformationVisitor
+def write_file(file_name, content): 
+    f = open(file_name, "w")
+    f.write(content)
+    f.close()
 
-def get_library_file_name(file_path): 
+def get_path_with_name(file_path, file_name): 
     file_path_components = os.path.split(file_path)
     file_folder = file_path_components[0]
 
-    return os.path.join(file_folder, "library.js")
+    return os.path.join(file_folder, file_name)
 
-def get_c_header_folder(file_path): 
-    file_path_components = os.path.split(file_path)
-    file_folder = file_path_components[0]
-
-    return os.path.join(file_folder, "__fake_libc_include__")
-
-def get_temp_file_name(file_path, file_extension): 
-    file_path_components = os.path.split(file_path)
+def get_path_with_extension(source_path, file_extension):
+    file_path_components = os.path.split(source_path)
     file_name_and_extension = file_path_components[-1].rsplit('.', 1)
     print(file_path_components)
     file_folder = '/'.join(file_path_components[:-1])
     file_name = file_name_and_extension[0]
 
     if file_folder:
-        return os.path.join(file_folder, file_name + ".g." + file_extension)
+        return os.path.join(file_folder, file_name + "." + file_extension)
     else: 
-        return file_name + ".g." + file_extension    
+        return file_name + "." + file_extension    
 
-def get_output_file_name(file_path): 
-    file_path_components = os.path.split(file_path)
-    file_folder = '/'.join(file_path_components[:-1])
-
-    if file_folder: 
-        return os.path.join(file_folder, "output.js")
-    else: 
-        return "output.js"
-
-def start_meta_write(file_path1, file_path2): 
-    c_file = open(file_path1, "r")
-    c_code = c_file.read()
-    c_code_escaped = json.dumps(c_code)
-
-    js_code = ("var Module = Module || { };\n"
-               "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
-               "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
-               "Module.preRun = Module.preRun || [];\n"
-               f"Module.preRun.push(function() {{ Module.simulatorCode = {c_code_escaped} }})")
-    js_file = open(file_path2, "w")
-    js_file.write(js_code)
-    js_file.close()
-
-def start_rewrite(file_path1, file_path2, headers_path):
-    with open(file_path1, 'r') as f: file_content = f.read()
-    file_lines = file_content.split('\n')
-    header_lines = [l for l in file_lines if l.startswith("#")]
-    headers = "\n".join(header_lines)
-
-    ast = parse_file(file_path1, use_cpp=True, cpp_path= 'clang', cpp_args= ['-E', '-I' + headers_path])
-    ast_code_nodes = [n for n in ast.ext if n.coord != None and n.coord.file.endswith("c")]
-    limited_ast = c_ast.FileAST(
-        ast_code_nodes,
-        None,
-        None)
-
-    # Add metadata
-    ParentVisitor().visit(limited_ast)
-    LocationVisitor().visit(limited_ast)
-    DeclarationVisitor().visit(limited_ast)
-    ExpressionTypeVisitor().visit(limited_ast)
-
-    # Rewrite root
-    rewritten_limited_ast = TransformationVisitor([
-        FileAstTransformation(),
-        FuncDefTransformation(),
-        DeclTransformation(),
-        FuncCallTransformation(),
-        AssignmentTransformation(),
-        BinaryOpTransformation(),
-        IdTransformation(),
-        CompoundTransformation(),
-        StatementTranformation(),
-        NodeTransformation()
-    ]).visit(limited_ast)
-    rewritten_ast = c_ast.FileAST(
-        rewritten_limited_ast.ext,
-        None,
-        None
-    )
+def generate_temp_files(source_path, c_target_path, js_target_path):
+    source_content = read_file(source_path)
     
-    generator = c_generator.CGenerator()
-    transformed_code = generator.visit(rewritten_ast)
-    transformed_code_with_headers = headers + "\n" + transformed_code
+    print('\nGenerating AST...')
+    tu = clang.cindex.Index.create().parse(source_path)
+    tu_filter = lambda n: n.location.file.name == source_path
+    AstPrinter(tu_filter).print(source_content, tu.cursor)
 
-    output_f = open(file_path2, "w")
-    output_f.write(transformed_code_with_headers)
-    output_f.close()
+    print('\nGenerating source tree...')
+    source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
+    SourceTreePrinter(False).print(source_root)
+    SourceTreePrinter(True).print(source_root)
 
-def start_transpile(file_path1, file_path2, file_path3, file_path4): 
-    os.system('emcc %s -s WASM=1 -o %s -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s' % (file_path1, file_path2, file_path3, file_path4))
+    print('\nGenerating modification tree...')
+    partial_visitors = [
+        #PartialTreeVisitor_TranslationUnit(),
+        PartialTreeVisitor_FunctionDecl(),
+        PartialTreeVisitor_VarDecl(),
+        PartialTreeVisitor_CallExpr(),
+        PartialTreeVisitor_BinaryOperator_Assignment(),
+        PartialTreeVisitor_BinaryOperator(),
+        PartialTreeVisitor_UnaryOperator_Assignment(),
+        PartialTreeVisitor_UnaryOperator(),
+        PartialTreeVisitor_DeclRefExpr(),
+        PartialTreeVisitor_GenericLiteral()
+    ]
+    composite_visitor = CompositeTreeVisitor(partial_visitors)
+    modification_root = composite_visitor.visit(source_root)
+
+    print('\nGenerating metadata file...')
+    notifications = composite_visitor.get_notifies()
+    notification_json = NotifyDataSerializer().serialize_list(notifications)
+    code_json = json.dumps(source_content)
+    js_target_content = (
+        "var Module = Module || { };\n"
+        "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
+        "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
+        "Module.preRun = Module.preRun || [];\n"
+        f"Module.preRun.push(function() {{\n Module.simulatorCode = {code_json};\n Module.simulatorNotifications = {notification_json}; \n}})"
+    )
+    write_file(js_target_path, js_target_content)
+
+    print("\nGenerating code file...")
+    modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
+    c_target_content = f"void notify(int ref, void* data);\n {modified_source_root}"
+    write_file(c_target_path, c_target_content)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        raise Exception("Sorry, please supply an input file")
-    
+    #if len(sys.argv) < 2:
+    #    raise Exception("Sorry, please supply an input file")
+
     script_file = sys.argv[0]
-    library_file = get_library_file_name(script_file)
-    c_headers = get_c_header_folder(script_file)
-
     input_file = sys.argv[1]
-    temp_c_file = get_temp_file_name(input_file, 'c')
-    temp_js_file = get_temp_file_name(input_file, 'js')
-    output_file = get_output_file_name(temp_c_file)
 
-    start_meta_write(input_file, temp_js_file)
-    start_rewrite(input_file, temp_c_file, c_headers)
-    start_transpile(temp_c_file, output_file, temp_js_file, library_file)
+    # Generate temporary files 
+    temp_c_path = get_path_with_extension(input_file, 'g.c')
+    temp_js_path = get_path_with_extension(input_file, 'g.js')
+    generate_temp_files(input_file, temp_c_path, temp_js_path)
+
+    # Generate output file
+    library_path = get_path_with_name(script_file, 'library.js')
+    output_c_path = get_path_with_name(input_file, 'output.js')
+    args = (temp_c_path, temp_js_path, library_path, output_c_path)
+    command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s -o %s' % args
+    print(command)
+    os.system(command)

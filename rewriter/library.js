@@ -1,42 +1,26 @@
 mergeInto(LibraryManager.library, {
     notify: function(metadataPtr, dataPtr) {
-        var step = {}; 
+        var metadata = Module.simulatorNotifications[metadataPtr];
 
-        // Parse raw data
-        var metadata = UTF8ToString(metadataPtr);
-        var parsedMetadata = metadata
-            .split(';')
-            .map(s => s.split('='))
-            .reduce((acc, v) => ({ ...acc, [v[0]]: v[1] }), {});
-        
-        if ("a" in parsedMetadata) {
-            step.action = parsedMetadata["a"];
-        } 
-        else throw new Error("Missing property a");
+        // Retreive data value
+        var dataType = metadata.dataType;
+        var dataValue;
+        switch(dataType) {
+            case "int":
+            case "long":
+                dataValue = getValue(dataPtr, 'i32');
+                break;
+            default: 
+                dataValue = getValue(dataPtr, dataType);
+                break;
+        }
 
-        if ("i" in parsedMetadata) {
-            step.identifier = parsedMetadata["i"];
-        }
-        if ("l" in parsedMetadata) {
-            step.location = parsedMetadata["l"]
-                .substring(1, parsedMetadata["l"].length - 1)
-                .split(",")
-                .map(n => parseInt(n));
-        }
-        if ("t" in parsedMetadata) {
-            step.dataType = parsedMetadata["t"];
-
-            switch(parsedMetadata["t"]) {
-                case "int":
-                    step.dataValue = Module.HEAP32[dataPtr / 4];
-                    break;
-                default: 
-                    throw new Error("Unsupported data type " + parsedMetadata["t"]);
-            }
-        }
-        
         // Create step 
         Module.simulatorSteps = Module.simulatorSteps || [];
-        Module.simulatorSteps.push(step);
+        if (Module.simulatorSteps.length < 10000) {
+            Module.simulatorSteps.push({ ...metadata, dataValue: dataValue });
+            console.log({ ...metadata, dataValue: dataValue });
+        }
+        else throw new Error("Too many steps (possible infinite loop)");
     }
 });
