@@ -1,5 +1,5 @@
 import re
-from source_nodes import SourceNode, SourceToken
+from source_nodes import SourceNode, SourceNodeResolver, SourceToken
 
 def assert_type(obj, type): 
     assert isinstance(obj, type), f"{obj} is not of type {type}"
@@ -303,6 +303,30 @@ class InsertAfterTokenKindNode(InsertAfterTokenNode):
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
         
         super().__init__(targetNode, targetToken, insertion)
+
+class InsertIntializerNode(ReplaceModificationNode):
+    def __init__(self, target: SourceNode, initializer: InsertModificationNode):
+        assert_type(target, SourceNode)
+        assert_type(initializer, InsertModificationNode)
+
+        if SourceNodeResolver.get_type(target) != "VarDecl" or len(target.get_children()) != 0:
+            raise Exception("InsertInitializerNode only supports VarDecl without children")
+
+        super().__init__()
+        self.target = target
+        self.intializer = initializer
+
+    def is_applicable(self, node: SourceNode) -> bool:
+        return SourceNode.equals(node, self.target)
+    
+    def apply(self, target: SourceNode) -> SourceNode:
+        return SourceNode.create(
+            None,
+            target.value + " = {0}",
+            target.get_tokens(),
+            [self.intializer.apply()]
+        )
+
 
 # Node creation functions 
 # Template functions are recursive by default

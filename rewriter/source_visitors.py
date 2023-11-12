@@ -1,7 +1,7 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -9,7 +9,7 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 def is_first_expression(source_node: SourceNode):
-    return source_node.parent is not None and SourceNodeResolver.get_type(source_node.parent) in ["CompoundStmt", "ForStmt", "ReturnStmt", "IfStmt"]
+    return source_node.parent is not None and SourceNodeResolver.get_type(source_node.parent) in ["CompoundStmt", "ForStmt", "ReturnStmt", "IfStmt", "WhileStmt"]
 
 def is_statement(source_node: SourceNode):
     if source_node is None: 
@@ -20,7 +20,7 @@ def is_statement(source_node: SourceNode):
         return True
     
     parent_children = source_node.parent.get_children()
-    return parent_type in ["ForStmt"] and parent_children[-1] == source_node
+    return parent_type in ["ForStmt", "IfStmt", "WhileStmt"] and parent_children[-1] == source_node
 
 # Basic visitors 
 class SourceTreeVisitor:
@@ -131,8 +131,8 @@ class NotifyData():
         NotifyData.counter += 1
         n = NotifyData(NotifyData.counter, f"&{value_node.value}")
         n.action = "decl" 
-        n.type = f"{source_node.get_tokens()[0]}"
-        n.identifier = f"{source_node.get_tokens()[1]}"
+        n.type = source_node.node.type.spelling
+        n.identifier = source_node.node.spelling
         return n
 
     @staticmethod
@@ -473,10 +473,20 @@ class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         child_buffer = []
         
-        notify_stat = NotifyData.create_stat(source_node)
-        child_buffer.append(self.create_notify(notify_stat))
+        if (source_node.parent is None or source_node.parent.get_children()[0] == source_node):
+            notify_stat = NotifyData.create_stat(source_node)
+            child_buffer.append(self.create_notify(notify_stat))
         
         children = source_node.get_children()
+        if (len(children) == 0):
+            temp_value = self.push_variable(source_node)
+            notify_decl = NotifyData.create_decl(source_node, temp_value)
+            child_buffer.append(self.create_notify(notify_decl))
+            child_buffer.append(temp_value)
+            initalizer = comma_node_with_parentheses(*child_buffer)
+
+            return InsertIntializerNode(source_node, initalizer)
+
         transformed_operand = self.callback(children[0]) 
         if transformed_operand is not None: 
             child_buffer.append(transformed_operand.get_children()[0])
