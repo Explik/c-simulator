@@ -419,54 +419,15 @@ class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor_CompoundEx
         transformed_node = super().visit(source_node, [source_node.get_children()[1]])
         return transformed_node.with_end_notify(eval_notify)
     
-class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
+class PartialTreeVisitor_CallExpr(PartialTreeVisitor_CompoundExpression):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "CallExpr"
-
+    
     def visit(self, source_node: SourceNode):
-        buffer_comma = []
-        buffer_parameters = []
-        identifier = source_node.get_children()[0]
-        parameters = source_node.get_children()[1:]
-        
-        if is_first_expression(source_node):
-            notify_stat = NotifyData.create_stat(source_node)
-            buffer_comma.append(self.create_notify(notify_stat))
-        
-        # Capture parameter values 
-        transformed_parameters = [(p, self.callback(p)) for p in parameters]
-        for transformed_parameter in transformed_parameters:
-            if transformed_parameter[1] is None: 
-                buffer_parameters.append(CopyNode(transformed_parameter[0]))
-            else: 
-                parameter_children = transformed_parameter[1].get_children()
-                buffer_comma.append(parameter_children[0])
-                buffer_parameters.append(parameter_children[1])
+        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
 
-        transformed_children = [CopyNode(identifier)] + buffer_parameters
-        transformed_node = copy_replace_node(
-            source_node, 
-            ReplaceChildrenNode(source_node, transformed_children)
-        )
-
-        # Capture return value
-        if (source_node.node.type.spelling != "void"):
-            temp_variable = self.push_variable(source_node)
-            notify_data = NotifyData.create_eval(source_node, temp_variable)
-            buffer_comma.append(assignment_node(temp_variable, transformed_node))
-            buffer_comma.append(self.create_notify(notify_data))
-            buffer_comma.append(temp_variable)
-        else: 
-            buffer_comma.append(transformed_node)
-
-        if len(buffer_comma) < 2:
-            return None 
-        
-        replace_node = comma_stmt_replace_node if is_statement(source_node) else comma_replace_node
-        return replace_node(
-            source_node, 
-            *buffer_comma
-        )
+        transformed_node = super().visit(source_node, source_node.get_children()[1:])
+        return transformed_node.with_end_notify(eval_notify)
 
 class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):

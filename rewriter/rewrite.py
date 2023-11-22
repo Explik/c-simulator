@@ -53,7 +53,7 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
         #PartialTreeVisitor_TranslationUnit(),
         #PartialTreeVisitor_FunctionDecl(),
         #PartialTreeVisitor_VarDecl(),
-        #PartialTreeVisitor_CallExpr(),
+        PartialTreeVisitor_CallExpr(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
