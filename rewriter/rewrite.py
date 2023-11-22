@@ -51,15 +51,15 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     print('\nGenerating modification tree...')
     partial_visitors = [
         #PartialTreeVisitor_TranslationUnit(),
-        PartialTreeVisitor_FunctionDecl(),
-        PartialTreeVisitor_VarDecl(),
-        PartialTreeVisitor_CallExpr(),
+        #PartialTreeVisitor_FunctionDecl(),
+        #PartialTreeVisitor_VarDecl(),
+        #PartialTreeVisitor_CallExpr(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
         PartialTreeVisitor_UnaryOperator(),
         PartialTreeVisitor_DeclRefExpr(),
-        PartialTreeVisitor_GenericLiteral()
+        #PartialTreeVisitor_GenericLiteral()
     ]
     composite_visitor = CompositeTreeVisitor(partial_visitors)
     modification_root = composite_visitor.visit(source_root)
@@ -79,7 +79,7 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
 
     print("\nGenerating code file...")
     modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
-    c_target_content = f"void notify(int ref, void* data);\n {modified_source_root}"
+    c_target_content = f"void notify(int ref);\n {modified_source_root}"
     write_file(c_target_path, c_target_content)
 
 if __name__ == "__main__":
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     #    raise Exception("Sorry, please supply an input file")
 
     script_file = sys.argv[0]
-    input_file = sys.argv[1]
+    input_file = 'C:\\Users\\ovs\\source\\repos\\c-simulator\\examples\\basic-example\\main.c' #sys.argv[1]
 
     # Generate temporary files 
     temp_c_path = get_path_with_extension(input_file, 'g.c')
