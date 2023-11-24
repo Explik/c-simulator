@@ -421,9 +421,12 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor_CompoundExpression):
         return SourceNodeResolver.get_type(source_node) == "CallExpr"
     
     def visit(self, source_node: SourceNode):
+        if source_node.node.type.spelling == "void":
+            return None
+
         eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
 
-        variable_node = self.push_variable(source_node) if source_node.node.type.spelling != "void" else None
+        variable_node = self.push_variable(source_node)
         child_nodes = source_node.get_children()[1:]
         transformed_node = super().visit(source_node, child_nodes, variable_node)
         return transformed_node.with_end_notify(eval_notify)
