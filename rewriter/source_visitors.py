@@ -208,6 +208,9 @@ class NotifyTemplateNode(ReplaceModificationNode):
        return SourceNode.equals(node, self.target)
 
     def apply(self, target: SourceNode) -> SourceNode:
+        if not(any(self.start_notfies)) and not(any(self.end_notifies)):
+            return SourceNode.copy(target)
+
         # Generate children
         variable_name = self.variable_node and f"{self.variable_node.apply()}"
         children_buffer = []
@@ -226,7 +229,7 @@ class NotifyTemplateNode(ReplaceModificationNode):
 
         if any(self.end_notifies): 
             child_buffer = [f"{target.id + 2000}"]
-            if any(n.action == "eval" for n in self.end_notifies):
+            if any(n.action == "eval" for n in self.end_notifies) and self.variable_node is not None:
                 child_buffer.append(f"&{variable_name}")
             child_buffer.extend(["&" + n.identifier for n in self.end_notifies if n.action == "assign"])
             child_value = "notify(" + ", ".join(child_buffer) + ")"
