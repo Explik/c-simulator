@@ -341,7 +341,9 @@ class CompositeTreeVisitor(SourceTreeVisitor):
         return ConstantNode(variable_name)
     
     def pop_variable(self) -> list[InsertModificationNode]:
-        return self.variables
+        temp = self.variables
+        self.variables = []
+        return temp
 
 class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor_SimpleExpression):
     def can_visit(self, source_node: SourceNode):
@@ -433,6 +435,7 @@ class PartialTreeVisitor_VarDecl(PartialTreeVisitor_SimpleExpression):
         transformed_node = super().visit(source_node.get_children()[0])
         return transformed_node.with_end_notify(decl_notify)
 
+
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):
         if (SourceNodeResolver.get_type(source_node) != "FunctionDecl"):
@@ -443,8 +446,8 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         function_body_node = source_node.get_children()[-1]
-        variables = self.pop_variables()
         transformed_children = [(c, self.callback(c)) for c in function_body_node.get_children()]
+        variables = self.pop_variables()
         statements = [copy_replace_node(c[0], c[1]) if c[1] is not None else CopyNode(c[0]) for c in transformed_children]
         
         return compound_replace_node(

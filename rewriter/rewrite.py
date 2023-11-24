@@ -51,15 +51,15 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     print('\nGenerating modification tree...')
     partial_visitors = [
         #PartialTreeVisitor_TranslationUnit(),
-        #PartialTreeVisitor_FunctionDecl(),
-        #PartialTreeVisitor_VarDecl(),
+        PartialTreeVisitor_FunctionDecl(),
+        PartialTreeVisitor_VarDecl(),
         PartialTreeVisitor_CallExpr(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
         PartialTreeVisitor_UnaryOperator(),
         PartialTreeVisitor_DeclRefExpr(),
-        #PartialTreeVisitor_GenericLiteral()
+        PartialTreeVisitor_GenericLiteral()
     ]
     composite_visitor = CompositeTreeVisitor(partial_visitors)
     modification_root = composite_visitor.visit(source_root)
