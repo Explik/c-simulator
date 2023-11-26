@@ -174,12 +174,34 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
     
 class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "UnaryOperator"
+        if SourceNodeResolver.get_type(source_node) != "UnaryOperator":
+            return False
+        return "Literal" not in SourceNodeResolver.get_type(source_node.get_children()[0])
 
     def visit(self, source_node: SourceNode):
         notify_data = self.register(EvalNotifyData(source_node))
         child_results = [self.callback(c) for c in source_node.get_children()]
         buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
+
+class PartialTreeVisitor_UnaryOperator_Address(PartialTreeVisitor_UnaryOperator):
+    def can_visit(self, source_node: SourceNode):
+        if (SourceNodeResolver.get_type(source_node) != "UnaryOperator"):
+            return False
+        
+        operator = SourceNodeResolver.get_unary_operator(source_node) 
+        return operator == "&"
+    
+    def visit(self, source_node: SourceNode):
+        notify_list = self.register([
+            EvalNotifyData(source_node)
+        ])
+        buffer = CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
 
         if source_node.is_statement():
             stat_notify = self.register(StatNotifyData(source_node))
