@@ -250,12 +250,13 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
         return SourceNodeResolver.get_type(source_node) == "CallExpr"
     
     def visit(self, source_node: SourceNode):
-        if source_node.node.type.spelling == "void":
-            return None
-
-        eval_notify = self.register(EvalNotifyData(source_node))
         child_results = [self.callback(c) for c in source_node.get_children()[1:]]
-        buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
+
+        if source_node.node.type.spelling != "void":
+            eval_notify = self.register(EvalNotifyData(source_node))
+            buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
+        else: 
+            buffer = CompoundVoidNotifyReplaceNode(source_node, child_results)
 
         if source_node.is_statement():
             stat_notify = self.register(StatNotifyData(source_node))
