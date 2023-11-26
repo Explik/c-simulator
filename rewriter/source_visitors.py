@@ -1,7 +1,8 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -97,179 +98,12 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
         else: 
             return None
 
-# Composite visitors 
-class NotifyData(): 
-    counter = -1
-
-    def __init__(self, id: int, value: str) -> None:
-        self.id = id
-        self.value = value
-        self.action: str|None = None
-        self.type:str|None = None
-        self.identifier:str|None = None
-        self.location:str|None = None
-
-    @staticmethod 
-    def create_assign(source_node: SourceNode, identifier_node: SourceNode): 
-        extent = source_node.node.extent
-        
-        NotifyData.counter += 1
-        n = NotifyData(NotifyData.counter, f"&{identifier_node}")
-        n.action = "assign" 
-        n.identifier = f"{identifier_node}"
-        n.location = [
-            extent.start.line, 
-            extent.start.column,
-            extent.end.line,
-            extent.end.column - 1
-        ]
-        n.type = identifier_node.node.type.spelling
-        return n
-
-    @staticmethod
-    def create_decl(source_node: SourceNode, value_node: ConstantNode): 
-        NotifyData.counter += 1
-        n = NotifyData(NotifyData.counter, f"&{value_node.value}")
-        n.action = "decl" 
-        n.type = source_node.node.type.spelling
-        n.identifier = source_node.node.spelling
-        return n
-
-    @staticmethod
-    def create_eval(source_node: SourceNode, value_node: ConstantNode): 
-        extent = source_node.node.extent
-        
-        NotifyData.counter += 1
-        n = NotifyData(NotifyData.counter, f"&{value_node.value}")
-        n.action = "eval" 
-        n.location = [
-            extent.start.line, 
-            extent.start.column,
-            extent.end.line,
-            extent.end.column - 1
-        ]
-        n.type = source_node.node.type.spelling
-        return n 
-    
-    @staticmethod
-    def create_stat(source_node: SourceNode):
-        extent = source_node.node.extent
-        
-        NotifyData.counter += 1
-        n = NotifyData(NotifyData.counter, "(void*)0")
-        n.action = "stat" 
-        n.location = [
-            extent.start.line, 
-            extent.start.column,
-            extent.end.line,
-            extent.end.column - 1
-        ]
-        return n 
-
-class NotifyDataSerializer():
-    def serialize_list(self, notifications: list[NotifyData]):
-        items = [self.serialize(n) for n in notifications]
-        serialized_items = ",".join(items)
-        return "[" + serialized_items + "]"
-    
-    def serialize(self, notification: NotifyData):
-        buffer = dict()
-        buffer["action"] = f"\"{notification.action}\""
-
-        if (notification.action in ["assign", "eval", "decl"]):
-            buffer["dataType"] = f"\"{notification.type}\""
-        
-        if (notification.action in ["assign", "eval", "stat"]):
-            buffer["location"] = f"{notification.location}"
-
-        if (notification.action in ["assign", "decl"]):
-            buffer["identifier"] = f"\"{notification.identifier}\""
-
-        items = [f"\"{key}\":{buffer[key]}" for key in buffer]
-        serialized_items = ",".join(items)
-        return "{" + serialized_items + "}"
-
-# Transformation nodes 
-class NotifyTemplateNode(ReplaceModificationNode): 
-    def __init__(self, target: SourceNode, node: InsertModificationNode, variable_node: InsertModificationNode|None = None, start_notifies: list[NotifyData] = [], end_notifies: list[NotifyData] = []) -> None:
-        assert_type(target, SourceNode)
-        assert_type(node, InsertModificationNode)
-        assert_list_type(start_notifies, NotifyData)
-        assert_list_type(end_notifies, NotifyData)
-
-        super().__init__()
-        self.target = target
-        self.node = node
-        self.variable_node = variable_node
-        self.start_notfies = start_notifies
-        self.end_notifies = end_notifies
-
-    def is_applicable(self, node: SourceNode) -> bool:
-       return SourceNode.equals(node, self.target)
-
-    def apply(self, target: SourceNode) -> SourceNode:
-        if not(any(self.start_notfies)) and not(any(self.end_notifies)):
-            return SourceNode.copy(target)
-
-        # Generate children
-        variable_name = self.variable_node and f"{self.variable_node.apply()}"
-        children_buffer = []
-        if any(self.start_notfies): 
-            children_buffer.append(SourceNode.create(None, f"notify({target.id + 1000})", [], [])) 
-        
-        if (self.variable_node is None): 
-            children_buffer.append(self.node.apply())
-        else:
-            children_buffer.append(SourceNode.create(
-                None,
-                f"{variable_name} = {{0}}",
-                [],
-                [self.node.apply()]
-            ))
-
-        if any(self.end_notifies): 
-            child_buffer = [f"{target.id + 2000}"]
-            if any(n.action == "eval" for n in self.end_notifies) and self.variable_node is not None:
-                child_buffer.append(f"&{variable_name}")
-            child_buffer.extend(["&" + n.identifier for n in self.end_notifies if n.action == "assign"])
-            child_value = "notify(" + ", ".join(child_buffer) + ")"
-
-            children_buffer.append(SourceNode.create(None, child_value, [], []))
-
-        if (self.variable_node is not None):
-            children_buffer.append(SourceNode.create(None, f"{variable_name}", [], []))
-
-        # Generate template 
-        template_placeholders = ["{" + f"{i}" + "}" for i in range(0, len(children_buffer))]
-        template = "(" + ", ".join(template_placeholders) + ")"
-        return SourceNode.create(None, template, [], children_buffer)
-    
-    def get_children(self) -> list[ModificationNode]:
-        return []
-    
-    def with_start_notify(self, notify_data: NotifyData):
-        return NotifyTemplateNode(
-            self.target, 
-            self.node,
-            self.variable_node,
-            self.start_notfies + [notify_data], 
-            self.end_notifies) 
-
-    def with_end_notify(self, notify_data: NotifyData): 
-         return NotifyTemplateNode(
-            self.target, 
-            self.node,
-            self.variable_node,
-            self.start_notfies, 
-            self.end_notifies + [notify_data]
-        ) 
-
+# Transformation visitors 
 class PartialTreeVisitor():
-    def __init__(self) -> None:
-        self.create_notify: Callable[[NotifyData], InsertModificationNode]|None = None
-        self.push_variable: Callable[[SourceNode], InsertModificationNode]|None = None
-        self.pop_variables: Callable[[], list[InsertModificationNode]]|None = None
+    def __init__(self) -> None:     
         self.callback: Callable[[SourceNode], ModificationNode]|None = None
+        self.register: Callable[[BaseNotify|list[BaseNotify]], BaseNotify|list[BaseNotify]]|None = None
+        self.deregister: Callable[[], list[BaseNotify]]|None = None
 
     def can_visit(self, source_node: SourceNode):
         raise Exception("Not implemented")
@@ -277,50 +111,17 @@ class PartialTreeVisitor():
     def visit(self, source_node: SourceNode): 
         raise Exception("Not implemented")
 
-class PartialTreeVisitor_SimpleExpression(PartialTreeVisitor): 
-    def visit(self, target_node: SourceNode):
-        value_node = CopyNode(target_node)
-        variable_node = self.push_variable(target_node)
-        return NotifyTemplateNode(target_node, value_node, variable_node)
-    
-class PartialTreeVisitor_CompoundExpression(PartialTreeVisitor):
-    def visit(self, source_node: SourceNode, children_nodes: list[SourceNode]|None = None, variable_node: SourceNode|None = None):
-        children = children_nodes if children_nodes is not None else source_node.get_children()
-        transformed_children = []
-
-        for child in children: 
-            child_result = self.callback(child)
-
-            if child_result is not None: 
-                transformed_children.append(child_result)
-
-        value_node = CopyReplaceNode(
-            source_node,
-            transformed_children
-        )
-        
-        return NotifyTemplateNode(
-            source_node,
-            value_node,
-            variable_node
-        )
-    
-class PartialTreeVisitor_StatementExpression(PartialTreeVisitor): 
-    def visit(self, source_node: SourceNode):
-        return super().visit(source_node)
-
 class CompositeTreeVisitor(SourceTreeVisitor):
     def __init__(self, partial_visitors: list[PartialTreeVisitor]) -> None:
         super().__init__() 
         self.notifies = []
-        self.variables = []
+        self.function_notifies = []
         self.partial_visitors = partial_visitors
 
         for visitor in partial_visitors: 
-            visitor.create_notify = self.create_notify
-            visitor.push_variable = self.push_variable
-            visitor.pop_variables = self.pop_variable
             visitor.callback = self.generic_visit
+            visitor.register = self.register_function_notify
+            visitor.deregister = self.deregister_function_notify
 
     def generic_visit(self, source_node: SourceNode) -> ModificationNode | None:
         partial_visitor = next((v for v in self.partial_visitors if v.can_visit(source_node)), None)
@@ -329,52 +130,44 @@ class CompositeTreeVisitor(SourceTreeVisitor):
         else: 
             return super().generic_visit(source_node)
     
-    def create_notify(self, data: NotifyData) -> InsertModificationNode: 
-        self.notifies.append(data)
-        return ConstantNode(f"notify({data.id}, {data.value})")
-
-    def get_notifies(self) -> list[NotifyData]:
+    def get_notifies(self): 
         return self.notifies
 
-    def push_variable(self, source_node: SourceNode) -> InsertModificationNode:
-        variable_type = source_node.node.type.spelling
-        variable_name = f"temp{len(self.variables)}"
-        variable = ConstantNode(f"{variable_type} {variable_name};")
-        self.variables.append(variable)
-        return ConstantNode(variable_name)
-    
-    def pop_variable(self) -> list[InsertModificationNode]:
-        temp = self.variables
-        self.variables = []
+    def register_function_notify(self, data: BaseNotify|list[BaseNotify]) -> BaseNotify|list[BaseNotify]: 
+        data_list = data if isinstance(data, list) else [data]
+        self.function_notifies.extend(data_list)
+        self.notifies.extend(data_list)
+        return data
+
+    def deregister_function_notify(self): 
+        temp = self.function_notifies
+        self.function_notifies = []
         return temp
 
-class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor_SimpleExpression):
+class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         node_type = SourceNodeResolver.get_type(source_node)
         return node_type in ["IntegerLiteral", "StringLiteral"]
     
     def visit(self, target_node: SourceNode):
-        return super().visit(target_node)
+        return ExprNotifyReplaceNode(target_node)
 
-class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor_SimpleExpression):
+class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "DeclRefExpr"
 
     def visit(self, source_node: SourceNode):
-        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
-
-        transformed_node = super().visit(source_node)
-        return transformed_node.with_end_notify(eval_notify)
+        notify_data = self.register(EvalNotifyData(source_node))
+        return ExprNotifyReplaceNode(source_node).with_end_notify(notify_data)
     
-class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor_SimpleExpression):
+class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "UnaryOperator"
 
     def visit(self, source_node: SourceNode):
-        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
-        
-        transformed_node = super().visit(source_node)
-        return transformed_node.with_end_notify(eval_notify)
+        notify_data = self.register(EvalNotifyData(source_node))
+        child_results = [self.callback(c) for c in source_node.get_children()]
+        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
 
 class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperator):
     def can_visit(self, source_node: SourceNode):
@@ -385,22 +178,22 @@ class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperat
         return operator == "++" or operator == "--"
     
     def visit(self, source_node: SourceNode):
-        assign_notify = NotifyData.create_assign(source_node, source_node.get_children()[0])
+        notify_list = self.register([
+            EvalNotifyData(source_node),
+            AssignNotifyData(source_node, source_node.get_children()[0])
+        ])
+        return CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
 
-        transformed_node = super().visit(source_node)
-        return transformed_node.with_end_notify(assign_notify)
-
-class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor_CompoundExpression):
+class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "BinaryOperator"
 
     def visit(self, source_node: SourceNode):
-        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
+        notify_data = self.register(EvalNotifyData(source_node))
+        child_results = [self.visit(c) for c in source_node.get_children()]
+        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
 
-        transformed_node = super().visit(source_node)
-        return transformed_node.with_end_notify(eval_notify)
-
-class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor_CompoundExpression):
+class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         if SourceNodeResolver.get_type(source_node) not in ["BinaryOperator", "CompoundAssignmentOperator"]:
             return False 
@@ -409,14 +202,14 @@ class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor_CompoundEx
         return binary_operator in ["=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="]
     
     def visit(self, source_node: SourceNode):
-        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
-        
-        variable_node = self.push_variable(source_node)
-        child_nodes = [source_node.get_children()[1]]
-        transformed_node = super().visit(source_node, child_nodes, variable_node)
-        return transformed_node.with_end_notify(eval_notify)
+        notify_list = self.register([
+            EvalNotifyData(source_node),
+            AssignNotifyData(source_node, source_node.get_children()[0])
+        ])
+        child_results = [self.callback(c) for c in source_node.get_children()[1:]]
+        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notifies(notify_list)
     
-class PartialTreeVisitor_CallExpr(PartialTreeVisitor_CompoundExpression):
+class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "CallExpr"
     
@@ -424,23 +217,17 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor_CompoundExpression):
         if source_node.node.type.spelling == "void":
             return None
 
-        eval_notify = NotifyData.create_eval(source_node, ConstantNode("temp"))
+        eval_notify = self.register(EvalNotifyData(source_node))
+        child_results = [self.callback(c) for c in source_node.get_children()[1:]]
+        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
 
-        variable_node = self.push_variable(source_node)
-        child_nodes = source_node.get_children()[1:]
-        transformed_node = super().visit(source_node, child_nodes, variable_node)
-        return transformed_node.with_end_notify(eval_notify)
-
-class PartialTreeVisitor_VarDecl(PartialTreeVisitor_SimpleExpression):
+class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "VarDecl"
 
     def visit(self, source_node: SourceNode):
-        decl_notify = NotifyData.create_decl(source_node, ConstantNode("temp"))
-
-        transformed_node = super().visit(source_node.get_children()[0])
-        return transformed_node.with_end_notify(decl_notify)
-
+        decl_notify = self.register(DeclNotifyData(source_node))
+        return self.callback(source_node.get_children()[0]).with_end_notify(decl_notify)
 
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):
@@ -452,19 +239,26 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         function_body_node = source_node.get_children()[-1]
-        transformed_children = [(c, self.callback(c)) for c in function_body_node.get_children()]
-        variables = self.pop_variables()
-        statements = [copy_replace_node(c[0], c[1]) if c[1] is not None else CopyNode(c[0]) for c in transformed_children]
-        
-        return compound_replace_node(
-            function_body_node, 
-            *(variables + statements)
-        )
+        results = [self.callback(c) for c in function_body_node.get_children()]
+        filtered_result = [r for r in results if r is not None]
+
+        notifies = self.deregister()
+        filtered_notifies = [n for n in notifies if isinstance(n, DeclNotifyData) or isinstance(n, EvalNotifyData)]
+        unique_notifies = filtered_notifies
+        declarations = [f"{n.type} {n.eval_identifier};" for n in unique_notifies]
+        declaration_block = ConstantNode("\n".join(declarations))
+        filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
+
+        return CompoundReplaceNode(function_body_node, filtered_result)
     
-class PartialTreeVisitor_TranslationUnit(PartialTreeVisitor): 
-    def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "TranslationUnit"
+    def push_variable(self, source_node: SourceNode) -> InsertModificationNode:
+        variable_type = source_node.node.type.spelling
+        variable_name = f"temp{len(self.variables)}"
+        variable = ConstantNode(f"{variable_type} {variable_name};")
+        self.variables.append(variable)
+        return ConstantNode(variable_name)
     
-    def visit(self, source_node: SourceNode):
-        template = "void notify(char* metadata)" + source_node.value
-        return None
+    def pop_variable(self) -> list[InsertModificationNode]:
+        temp = self.variables
+        self.variables = []
+        return temp

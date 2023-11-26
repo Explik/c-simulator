@@ -89,6 +89,10 @@ class CopyReplaceNode(InsertModificationNode):
 
     def get_children(self) -> list[ModificationNode]:
         return self.replacements
+    
+    def with_child(self, target, replacement) -> 'CopyReplaceNode': 
+        children = [(replacement if c == target else c) for c in self.replacements]
+        return CopyReplaceNode(self.source, children)
 
 class TemplatedNode(InsertModificationNode):
     def __init__(self, template: str, insertions: list[InsertModificationNode]) -> None:
@@ -269,13 +273,14 @@ class TemplatedReplaceNode(ReplaceModificationNode):
 
 class InsertAfterTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
-    def __init__(self, targetNode: SourceNode, targetToken, insertions: ModificationNode|list[ModificationNode]) -> None:
+    def __init__(self, targetNode: SourceNode, targetToken, insertion: InsertModificationNode) -> None:
         assert_type(targetNode, SourceNode)
+        assert_type(insertion, InsertModificationNode)
         
         super().__init__()
         self.targetNode = targetNode
         self.targetToken = targetToken
-        self.insertions = insertions
+        self.insertion = insertion
 
         if not any(t for t in targetNode.get_tokens() if t == targetToken):
             raise Exception(f"Target node {targetNode.id} does not contain target token")
@@ -284,21 +289,15 @@ class InsertAfterTokenNode(ReplaceModificationNode):
         return SourceNode.equals(node, self.targetNode)
     
     def apply(self, target: SourceNode) -> SourceNode:
-        insertion_texts = [f"{i.apply(target)}" for i in self.insertions]
-        insertion_nodes = [SourceToken.create(None, t) for t in insertion_texts]
-        insertion_nodes.reverse()
-
-        buffer = target
-        for insertion_node in insertion_nodes: 
-            buffer = SourceNode.insert_after_token(buffer, self.targetToken, insertion_node)
-        return buffer
+        insertion_token = SourceToken.create(None, f"{self.insertion.apply()}")
+        return SourceNode.insert_after_token(target, self.targetToken, insertion_token)
     
     def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: ModificationNode) -> None:
-        targetToken = next((t for t in targetNode.node_tokens if get_token_kind(t) == targetTokenKind), None)
+        targetToken = next((t for t in targetNode.get_tokens() if get_token_kind(t.token) == targetTokenKind), None)
         if targetNode is None: 
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
         
@@ -326,7 +325,6 @@ class InsertIntializerNode(ReplaceModificationNode):
             target.get_tokens(),
             [self.intializer.apply()]
         )
-
 
 # Node creation functions 
 # Template functions are recursive by default

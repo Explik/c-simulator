@@ -4,7 +4,7 @@ import os
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, NotifyDataSerializer, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_TranslationUnit, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl, SourceTreeModifier
 
 def read_file(file_name): 
     f = open(file_name)
@@ -50,7 +50,6 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
 
     print('\nGenerating modification tree...')
     partial_visitors = [
-        #PartialTreeVisitor_TranslationUnit(),
         PartialTreeVisitor_FunctionDecl(),
         PartialTreeVisitor_VarDecl(),
         PartialTreeVisitor_CallExpr(),
@@ -63,24 +62,30 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     ]
     composite_visitor = CompositeTreeVisitor(partial_visitors)
     modification_root = composite_visitor.visit(source_root)
+    
+    print("\nGenerating code file...")
+    modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
+    c_target_declarations = "\n".join([
+        "void notify_0(int ref);",
+        "void notify_1(int ref, void* ptr1);",
+        "void notify_2(int ref, void* ptr1, void* ptr2);",
+        "void notify_3(int ref, void* ptr1, void* ptr2, void* ptr3);",
+    ])
+    c_target_content = f"{c_target_declarations}\n{modified_source_root}"
+    write_file(c_target_path, c_target_content)
 
-    print('\nGenerating metadata file...')
-    notifications = composite_visitor.get_notifies()
-    notification_json = NotifyDataSerializer().serialize_list(notifications)
+    print('\nGenerating code metadata file...')
+    notifications_json = [n.serialize() for n in composite_visitor.get_notifies()]
+    notification_json = "[\n    " + ",\n    ".join(notifications_json) +"\n  ]"
     code_json = json.dumps(source_content)
     js_target_content = (
         "var Module = Module || { };\n"
         "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
         "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
         "Module.preRun = Module.preRun || [];\n"
-        f"Module.preRun.push(function() {{\n Module.simulatorCode = {code_json};\n Module.simulatorNotifications = {notification_json}; \n}})"
+        f"Module.preRun.push(function() {{\n  Module.simulatorCode = {code_json};\n  Module.simulatorNotifications = {notification_json}; \n}})"
     )
     write_file(js_target_path, js_target_content)
-
-    print("\nGenerating code file...")
-    modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
-    c_target_content = f"void notify(int ref);\n {modified_source_root}"
-    write_file(c_target_path, c_target_content)
 
 if __name__ == "__main__":
     #if len(sys.argv) < 2:
