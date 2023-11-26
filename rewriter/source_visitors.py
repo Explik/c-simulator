@@ -2,7 +2,7 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, StatNotifyData
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, PreExprNotifyReplaceNode, StatNotifyData
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -264,14 +264,27 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
         
         return buffer
 
-class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
+# Transforms int a = 0, b = 1; to int a 
+class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl"
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and any(source_node.get_children())
 
     def visit(self, source_node: SourceNode):
         stat_notify = self.register(StatNotifyData(source_node))
         decl_notify = self.register(DeclNotifyData(source_node))
         return self.callback(source_node.get_children()[0]).with_start_notify(stat_notify).with_end_notify(decl_notify)
+
+# Transforms int a, b; to int a = (temp, notify(), temp), b = (temp, notify(), temp)
+class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and not(any(source_node.get_children()))
+    
+    def visit(self, source_node: SourceNode):
+        notify_list = self.register([
+            StatNotifyData(source_node),
+            DeclNotifyData(source_node)
+        ])
+        return PreExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
 
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):

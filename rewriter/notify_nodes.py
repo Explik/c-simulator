@@ -112,7 +112,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
     def is_applicable(self, node: SourceNode) -> bool:
         return node == self.target
     
-    def apply(self, node: SourceNode, middle_node: InsertModificationNode, end_node: InsertModificationNode|None = None): 
+    def apply(self, node: SourceNode, before_node: InsertModificationNode|None = None,  middle_node: InsertModificationNode|None = None, end_node: InsertModificationNode|None = None): 
         # Update notify data 
         start_reference = f"{1000 + node.id}"
         for notify in self.start_notifies:
@@ -126,10 +126,14 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         placeholders = []
         identifiers = flatten([n.get_identifiers() for n in self.end_notifies])
 
+        if before_node is not None: 
+            placeholders.append(before_node)
+
         if any(self.start_notifies): 
             placeholders.append(ConstantNode(f"notify_0({start_reference})"))
         
-        placeholders.append(middle_node)
+        if middle_node is not None: 
+            placeholders.append(middle_node)
         
         if any(self.end_notifies):
             list_1 = [f"&{i}" for i in identifiers]
@@ -140,7 +144,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
             placeholders.append(end_node)
 
         if len(placeholders) > 1: 
-            return comma_node_with_parentheses(*placeholders).apply()
+            return comma_node_with_parentheses(*placeholders).apply() 
         else: 
             return placeholders[0].apply()
         
@@ -169,13 +173,36 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         instance.end_notifies = instance.end_notifies + data_list
         return instance
 
+# Transforms expr to expr = notify(), temp, notify(), temp
+class PreExprNotifyReplaceNode(NotifyBaseReplaceNode):
+    def __init__(self, target: SourceNode) -> None:
+        super().__init__(target)
+
+    def with_start_notify(self, data: BaseNotify):
+        raise Exception("Use with_end_notify instead")
+    
+    def with_start_notifies(self, data_list: list[BaseNotify]):
+        raise Exception("Use with_end_notifies instead")
+
+    def apply(self, node: SourceNode) -> SourceNode:
+        if any(self.end_notifies):
+            variable_name = next(n for n in self.end_notifies if n.eval_identifier is not None).eval_identifier
+            expression_value = f"{super().apply(node, middle_node=ConstantNode(variable_name), end_node=ConstantNode(variable_name))}"
+           
+            return assignment_node(
+                CopyNode(node),
+                ConstantNode(expression_value)
+            ).apply()
+        else: 
+            return node
+
 # Transforms void_expr to notify(), void_expr, notify()
 class NotifyVoidReplaceNode(NotifyBaseReplaceNode):
     def __init__(self, target: SourceNode) -> None:
         super().__init__(target)
 
     def apply(self, node: SourceNode) -> SourceNode:
-        return super().apply(node, CopyNode(node))
+        return super().apply(node, middle_node=CopyNode(node))
 
 # Transforms expr to notify(), temp = expr, notify(), temp
 class ExprNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -194,7 +221,7 @@ class ExprNotifyReplaceNode(NotifyBaseReplaceNode):
             variable_node = None
             value_node = CopyNode(node)
         
-        return super().apply(node, value_node, variable_node)
+        return super().apply(node, middle_node=value_node, end_node=variable_node)
 
 # Transforms compound_expr to notify(), compound_expr, notify() 
 class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -207,7 +234,7 @@ class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
             node, 
             self.children
         )
-        return super().apply(node, value_node)
+        return super().apply(node, middle_node=value_node)
 
 # Transforms compound_expr to notify(), temp = compound_expr, notify(), temp
 class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -232,5 +259,5 @@ class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
                 node, 
                 self.children
             )
-        return super().apply(node, value_node, variable_node)
+        return super().apply(node, middle_node=value_node, end_node=variable_node)
         
