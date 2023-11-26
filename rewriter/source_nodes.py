@@ -36,6 +36,14 @@ class SourceNode:
     def get_tokens(self) -> list[SourceToken]:
         return self.tokens
 
+    def is_statement(self):
+        parent_type = SourceNodeResolver.get_type(self.parent)
+        if parent_type in ["CompoundStmt", "DeclStmt", "ReturnStmt"]:
+            return True
+    
+        parent_children = self.parent.get_children()
+        return parent_type in ["ForStmt", "IfStmt", "WhileStmt"] and parent_children[-1] == self
+
     def __eq__(self, node: object) -> bool:
         if not(isinstance(node, SourceNode)): 
             return False

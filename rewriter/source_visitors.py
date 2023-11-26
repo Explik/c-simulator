@@ -2,7 +2,7 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, StatNotifyData
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -150,15 +150,27 @@ class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
         return node_type in ["IntegerLiteral", "StringLiteral"]
     
     def visit(self, target_node: SourceNode):
-        return ExprNotifyReplaceNode(target_node)
+        buffer = ExprNotifyReplaceNode(target_node)
+        
+        if target_node.is_statement():
+            stat_notify = self.register(StatNotifyData(target_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
 
 class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "DeclRefExpr"
 
     def visit(self, source_node: SourceNode):
-        notify_data = self.register(EvalNotifyData(source_node))
-        return ExprNotifyReplaceNode(source_node).with_end_notify(notify_data)
+        eval_notify = self.register(EvalNotifyData(source_node))
+        buffer = ExprNotifyReplaceNode(source_node).with_end_notify(eval_notify)
+        
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData())
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
     
 class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
@@ -167,7 +179,13 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         notify_data = self.register(EvalNotifyData(source_node))
         child_results = [self.callback(c) for c in source_node.get_children()]
-        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
+        buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
 
 class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperator):
     def can_visit(self, source_node: SourceNode):
@@ -182,7 +200,13 @@ class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperat
             EvalNotifyData(source_node),
             AssignNotifyData(source_node, source_node.get_children()[0])
         ])
-        return CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
+        buffer = CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
 
 class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
@@ -191,7 +215,13 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         notify_data = self.register(EvalNotifyData(source_node))
         child_results = [self.visit(c) for c in source_node.get_children()]
-        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
+        buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
 
 class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
@@ -207,7 +237,13 @@ class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor):
             AssignNotifyData(source_node, source_node.get_children()[0])
         ])
         child_results = [self.callback(c) for c in source_node.get_children()[1:]]
-        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notifies(notify_list)
+        buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notifies(notify_list)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
     
 class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
@@ -219,15 +255,22 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
 
         eval_notify = self.register(EvalNotifyData(source_node))
         child_results = [self.callback(c) for c in source_node.get_children()[1:]]
-        return CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
+        buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
 
 class PartialTreeVisitor_VarDecl(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "VarDecl"
 
     def visit(self, source_node: SourceNode):
+        stat_notify = self.register(StatNotifyData(source_node))
         decl_notify = self.register(DeclNotifyData(source_node))
-        return self.callback(source_node.get_children()[0]).with_end_notify(decl_notify)
+        return self.callback(source_node.get_children()[0]).with_start_notify(stat_notify).with_end_notify(decl_notify)
 
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):

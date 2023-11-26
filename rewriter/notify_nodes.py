@@ -88,6 +88,17 @@ class EvalNotifyData(BaseNotify):
     def get_identifiers(self) -> list[str]:
         return [self.eval_identifier]
 
+class StatNotifyData(BaseNotify): 
+    def __init__(self, node: SourceNode) -> None:
+        super().__init__(node)
+        self.action = "stat"
+        self.location = [
+            node.node.extent.start.line, 
+            node.node.extent.start.column,
+            node.node.extent.end.line,
+            node.node.extent.end.column - 1
+        ]
+
 # Notify nodes
 class NotifyBaseReplaceNode(ReplaceModificationNode):
     def __init__(self, target: SourceNode) -> None:
@@ -172,7 +183,7 @@ class ExprNotifyReplaceNode(NotifyBaseReplaceNode):
         super().__init__(target) 
 
     def apply(self, node: SourceNode) -> SourceNode:
-        if any(self.start_notifies) or any(self.end_notifies):
+        if any(self.end_notifies):
             variable_name = next(n for n in self.end_notifies if n.eval_identifier is not None).eval_identifier
             variable_node = ConstantNode(variable_name)
             value_node = assignment_node(
@@ -205,7 +216,7 @@ class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
         self.children = children
 
     def apply(self, node: SourceNode) -> SourceNode:
-        if any(self.start_notifies) or any(self.end_notifies):
+        if any(self.end_notifies):
             variable_name = next(n for n in self.end_notifies if n.eval_identifier is not None).eval_identifier
             variable_node = ConstantNode(variable_name)
             value_node = TemplatedNode(

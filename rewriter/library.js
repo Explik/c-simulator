@@ -1,26 +1,9 @@
 mergeInto(LibraryManager.library, {
-    notify_0: function(reference, ...dataPointers) {
+    notify_0: function(reference) {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["eval", "decl"].includes(n.action));
-        var notifySteps = [];
-        
-        for(var i = 0; i < notifyDataNotifications.length; i++) {
-            var notification = notifyDataNotifications[i];
-            var dataType = notification.dataType;
-            var dataValue;
-            switch(dataType) {
-                case "int":
-                case "long":
-                    dataValue = getValue(dataPointers[i], 'i32');
-                    break;
-                default: 
-                    dataValue = getValue(dataPointers[i], dataType);
-                    break;
-            }
-            notifySteps.push({ ...notification, dataValue: dataValue })
-        }
+        var notifySteps = notifyNotifications;
 
         if (Module.simulatorSteps.length > 10000)
             throw new Error("Too many steps (possible infinite loop)");
@@ -34,7 +17,7 @@ mergeInto(LibraryManager.library, {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["eval", "decl"].includes(n.action));
+        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl"].includes(n.action));
         var notifySteps = [];
         
         for(var i = 0; i < notifyDataNotifications.length; i++) {
@@ -65,7 +48,7 @@ mergeInto(LibraryManager.library, {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["eval", "decl"].includes(n.action));
+        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl"].includes(n.action));
         var notifySteps = [];
         
         for(var i = 0; i < notifyDataNotifications.length; i++) {
@@ -96,7 +79,7 @@ mergeInto(LibraryManager.library, {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["eval", "decl"].includes(n.action));
+        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl"].includes(n.action));
         var notifySteps = [];
         
         for(var i = 0; i < notifyDataNotifications.length; i++) {
@@ -127,7 +110,7 @@ mergeInto(LibraryManager.library, {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["eval", "decl"].includes(n.action));
+        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl"].includes(n.action));
         var notifySteps = [];
         
         for(var i = 0; i < notifyDataNotifications.length; i++) {
