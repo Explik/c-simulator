@@ -113,14 +113,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         return node == self.target
     
     def apply(self, node: SourceNode, before_node: InsertModificationNode|None = None,  middle_node: InsertModificationNode|None = None, end_node: InsertModificationNode|None = None): 
-        # Update notify data 
-        start_reference = f"{1000 + node.id}"
-        for notify in self.start_notifies:
-            notify.set_reference(start_reference)
-
-        end_reference = f"{2000 + node.id}"
-        for notify in self.end_notifies:
-            notify.set_reference(end_reference)
+        self.update_notify(node)
         
         # Generate statement expression
         placeholders = []
@@ -130,12 +123,14 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
             placeholders.append(before_node)
 
         if any(self.start_notifies): 
+            start_reference = self.start_notifies[0].get_reference()
             placeholders.append(ConstantNode(f"notify_0({start_reference})"))
         
         if middle_node is not None: 
             placeholders.append(middle_node)
         
         if any(self.end_notifies):
+            end_reference = self.end_notifies[0].get_reference()
             list_1 = [f"&{i}" for i in identifiers]
             list_2 = [f"{end_reference}"] + list_1
             placeholders.append(ConstantNode(f"notify_{len(identifiers)}({', '.join(list_2)})"))
@@ -148,6 +143,16 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         else: 
             return placeholders[0].apply()
         
+    def update_notify(self, node: SourceNode):
+        # Update notify data 
+        start_reference = f"{1000 + node.id}"
+        for notify in self.start_notifies:
+            notify.set_reference(start_reference)
+
+        end_reference = f"{2000 + node.id}"
+        for notify in self.end_notifies:
+            notify.set_reference(end_reference)
+
     def clone(self): 
         return copy(self)
 
@@ -223,6 +228,31 @@ class ExprNotifyReplaceNode(NotifyBaseReplaceNode):
         
         return super().apply(node, middle_node=value_node, end_node=variable_node)
 
+# Transforms stmt; to { notify(); stmt; notify(); }
+class StmtNotifyReplaceNode(NotifyBaseReplaceNode):
+    def __init__(self, target: SourceNode) -> None:
+        super().__init__(target)
+    
+    def apply(self, node: SourceNode) -> SourceNode:
+        self.update_notify(node)
+
+        placeholders = []
+        if any(self.start_notifies): 
+            start_reference = self.start_notifies[0].get_reference()
+            placeholders.append(ConstantNode(f"notify_0({start_reference})"))
+        
+        placeholders.append(CopyNode(node))
+
+        if any(self.end_notifies):
+            end_reference = self.end_notifies[0].get_reference()
+            placeholders.append(ConstantNode(f"notify_0({end_reference})"))
+
+        if len(placeholders) > 1: 
+            templates = ["{ {0}; }", "{ {0}; {1}; }", "{ {0}; {1}; {2}; }"]
+            return TemplatedNode(templates[len(placeholders) - 1], placeholders).apply() 
+        else: 
+            return placeholders[0].apply()
+        
 # Transforms compound_expr to notify(), compound_expr, notify() 
 class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
     def __init__(self, target: SourceNode, children: list[NotifyBaseReplaceNode]) -> None:
