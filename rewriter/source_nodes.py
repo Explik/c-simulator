@@ -38,10 +38,18 @@ class SourceNode:
 
     def is_statement(self):
         parent_type = SourceNodeResolver.get_type(self.parent)
+        grand_parent_type = self.parent and SourceNodeResolver.get_type(self.parent.parent)
+        parent_children = self.parent.get_children()
+
         if parent_type in ["CompoundStmt", "DeclStmt", "ReturnStmt"]:
             return True
-    
-        parent_children = self.parent.get_children()
+        
+        if grand_parent_type in ["SwitchStmt"] and parent_children[0] == self:
+            return True
+
+        if parent_type in ["CaseStmt", "DefaultStmt"] and parent_children[0] != self:
+            return True
+
         return parent_type in ["ForStmt", "IfStmt", "WhileStmt"] and parent_children[-1] == self
 
     def __eq__(self, node: object) -> bool:

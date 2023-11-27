@@ -167,7 +167,7 @@ class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
         buffer = ExprNotifyReplaceNode(source_node).with_end_notify(eval_notify)
         
         if source_node.is_statement():
-            stat_notify = self.register(StatNotifyData())
+            stat_notify = self.register(StatNotifyData(source_node))
             buffer = buffer.with_start_notify(stat_notify)
         
         return buffer
