@@ -24,47 +24,51 @@ var groupBy = function(xs, key) {
   };
 
 /**
- * 
- * @param {SimulationStep[]} steps 
- * @param {"expression"} mode
- * @returns {number}
+ * @param {SimulationStep} step
+ * @returns {bool}
  */
-export function getFirstStep(steps, mode) {
-    if (mode !== "expression")
-        throw new error("Unsupported mode " + mode);
+export function isStatementStep(step) {
+    return step.action == "stat";
+} 
 
-    const index = steps.findIndex(s => s.action === "eval");
+/**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
+export function isExpressionStep(step) {
+    return step.action == "eval";
+}
+
+/**
+ * getFirstStep returns first breakable step in step sequence (nullable)
+ * @param {function(SimulationStep)} isBreakStep
+ * @param {SimulationStep[]} steps
+ */
+export function getFirstStep(isBreakStep, steps) {
+    const index = steps.findIndex(isBreakStep);
     return (index !== -1) ? index : undefined;
 }
 
 /**
- * 
+ * getNextStep returns next breakable step in step sequence (nullable)
+ * @param {function(SimulationStep)} isBreakStep 
  * @param {SimulationStep[]} steps 
- * @param {number} currentStep 
- * @param {"expression"} mode
- * @returns {number}
+ * @param {number} currentIndex 
  */
-export function stepForward(steps, currentStep, mode) {
-    if (mode !== "expression")
-        throw new error("Unsupported mode " + mode);
-
-    const offset = steps.slice(currentStep + 1).findIndex(s => s.action === "eval");
-    return (offset !== -1) ? offset + currentStep + 1 : undefined;
+export function getNextStep(isBreakStep, steps, currentIndex) {
+    const offset = steps.slice(currentIndex + 1).findIndex(isBreakStep);
+    return (offset !== -1) ? currentIndex + offset + 1 : undefined;
 }
 
 /**
- * 
+ * getPreviousStep returns next breakable step in step sequence (nullable)
+ * @param {function(SimulationStep)} isBreakStep 
  * @param {SimulationStep[]} steps 
- * @param {number} currentStep 
- * @param {"expression"} mode
- * @returns {number}
+ * @param {number} currentIndex 
  */
-export function stepBackward(steps, currentStep, mode) {
-    if (mode !== "expression")
-        throw new error("Unsupported mode " + mode);
-
-    const offset = steps.slice(0, currentStep).reverse().findIndex(s => s.action === "eval");
-    return (offset !== -1) ? currentStep - offset - 1 : undefined;
+export function getPreviousStep(isBreakStep, steps, currentIndex) {
+    const offset = steps.slice(0, currentIndex).findLastIndex(isBreakStep);
+    return (offset !== -1) ? offset : undefined;
 }
 
 /**
@@ -210,4 +214,4 @@ export function getVariables(steps) {
     });
 }   
 
-export default { stepForward, stepBackward, getFirstStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables }
+export default { isStatementStep, isExpressionStep, getFirstStep, getNextStep, getPreviousStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables }

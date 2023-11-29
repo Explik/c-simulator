@@ -1,135 +1,152 @@
 import assert from 'assert';
-import { stepForward, stepBackward, getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode } from './wrapper-functions.js';
+import { getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode, getNextStep, getPreviousStep } from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
-  it ('returns undefined when all steps are non-expression', function() {
+  it ('returns undefined when no step matches', function() {
     const steps = [
-      { action: 'decl' },
-      { action: 'decl' },
+      { type: 'a' },
+      { type: 'b' },
     ];
-    const actual = getFirstStep(steps, "expression");
+    const actual = getFirstStep(() => false, steps);
 
     assert.equal(actual, undefined);
   });
-  it ('returns zero when first step is expression', function() {
+  it ('returns first when first step matches', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' },
+      { type: 'a' },
+      { type: 'b' },
     ];
-    const actual = getFirstStep(steps, "expression");
+    const actual = getFirstStep(s => s.type === 'a', steps);
 
     assert.equal(actual, 0);
   });
-  it ('returns one when second step is expression', function() {
+  it ('returns first when first and second step matches', function() {
     const steps = [
-      { action: 'decl' },
-      { action: 'eval' },
+      { type: 'a' }, 
+      { type: 'a' },
     ];
-    const actual = getFirstStep(steps, "expression");
+    const actual = getFirstStep(s => s => s.type === 'a', steps);
+
+    assert.equal(actual, 0);
+  });
+  it ('returns second when second step matches', function() {
+    const steps = [
+      { type: 'a' },
+      { type: 'b' },
+    ];
+    const actual = getFirstStep(s => s.type === 'b', steps);
 
     assert.equal(actual, 1);
   });
 });
 
-describe('stepForward', function () {
-  it ('returns undefined when all next steps are non-expression', function() {
+describe("getNextStep", function() {
+  it ('returns undefined when no steps matches', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' }, // currentStep
-      { action: 'decl' },
-      { action: 'decl' },
-      { action: 'decl' }
+      { type: 'a' }, // current step
+      { type: 'b' },
+      { type: 'c' },
+      { type: 'd' },
+      { type: 'e' },
+      { type: 'f' }
     ];
-    const actual = stepForward(steps, 1, 'expression');
+    const actual = getNextStep(() => false, steps, 0);
 
     assert.equal(actual, undefined);
   });
-  it('skips none when the next step is expression', function () {
+  it ('returns undefined when no comming step matches', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' }, // currentStep
-      { action: 'eval' },
-      { action: 'eval' },
-      { action: 'eval' }
+      { type: 'a' }, 
+      { type: 'b' }, // current step
+      { type: 'c' },
+      { type: 'd' },
+      { type: 'e' },
+      { type: 'f' }
     ];
-    const actual = stepForward(steps, 1, 'expression');
+    const actual = getNextStep(s => s.type == 'b', steps, 1);
 
-    assert.equal(actual, 2);
+    assert.equal(actual, undefined);
   });
-  it('skips one when the next step is declaration', function () {
+  it ('returns next step when next step matches', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' }, // currentStep
-      { action: 'decl' },
-      { action: 'eval' },
-      { action: 'eval' }
+      { type: 'a' }, 
+      { type: 'b' },
+      { type: 'c' }, // current step
+      { type: 'd' }, // next step
+      { type: 'e' },
+      { type: 'f' }
     ];
-    const actual = stepForward(steps, 1, 'expression');
+    const actual = getNextStep(s => s.type == 'd', steps, 2);
 
     assert.equal(actual, 3);
   });
-  it('skips two when the two next steps are declarations ', function () {
+  it ('skips one step when next step does not match', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' }, // currentStep
-      { action: 'decl' },
-      { action: 'decl' },
-      { action: 'eval' }
+      { type: 'a' }, 
+      { type: 'b' },
+      { type: 'c' }, 
+      { type: 'd' }, // current step
+      { type: 'e' },
+      { type: 'f' }  // next step
     ];
-    const actual = stepForward(steps, 1, 'expression');
+    const actual = getNextStep(s => s.type == 'f', steps, 3);
 
-    assert.equal(actual, 4);
+    assert.equal(actual, 5);
   });
 });
 
-describe('stepBackward', function() {
-  it ('returns undefined when all previous steps are non-expression', function() {
+describe("getPreviousStep", function() {
+  it ('returns undefined when no steps matches', function() {
     const steps = [
-      { action: 'decl' },
-      { action: 'decl' },
-      { action: 'decl' },
-      { action: 'eval' }, // currentStep
-      { action: 'eval' }
+      { type: 'a' },
+      { type: 'b' },
+      { type: 'c' },
+      { type: 'd' },
+      { type: 'e' },
+      { type: 'f' } // current step
     ];
-    const actual = stepBackward(steps, 3, 'expression');
+    const actual = getPreviousStep(() => false, steps, 5);
 
     assert.equal(actual, undefined);
   });
-  it('skips none when the next step is expression', function () {
+  it ('returns undefined when no comming step matches', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' },
-      { action: 'eval' },
-      { action: 'eval' }, // currentStep
-      { action: 'eval' }
+      { type: 'a' },
+      { type: 'b' }, 
+      { type: 'c' },
+      { type: 'd' },
+      { type: 'e' }, // current step 
+      { type: 'f' }
     ];
-    const actual = stepBackward(steps, 3, 'expression');
+    const actual = getPreviousStep(s => s.type == 'e', steps, 4);
+
+    assert.equal(actual, undefined);
+  });
+  it ('returns next step when next step matches', function() {
+    const steps = [
+      { type: 'a' }, 
+      { type: 'b' },
+      { type: 'c' }, // previous step
+      { type: 'd' }, // current step
+      { type: 'e' },
+      { type: 'f' }
+    ];
+    const actual = getPreviousStep(s => s.type == 'c', steps, 3);
 
     assert.equal(actual, 2);
   });
-  it('skips one when the previous step is non-expression', function () {
+  it ('skips one step when next step does not match', function() {
     const steps = [
-      { action: 'eval' },
-      { action: 'eval' },
-      { action: 'decl' },
-      { action: 'eval' }, // currentStep
-      { action: 'eval' }
+      { type: 'a' }, 
+      { type: 'b' }, // previous step
+      { type: 'c' }, 
+      { type: 'd' }, // current step
+      { type: 'e' },
+      { type: 'f' }
     ];
-    const actual = stepBackward(steps, 3, 'expression');
+    const actual = getPreviousStep(s => s.type == 'b', steps, 3);
 
     assert.equal(actual, 1);
-  });
-  it('skips none when the two previous step is non-expression', function () {
-    const steps = [
-      { action: 'eval' },
-      { action: 'decl' },
-      { action: 'decl' },
-      { action: 'eval' }, // currentStep
-      { action: 'eval' }
-    ];
-    const actual = stepBackward(steps, 3, 'expression');
-
-    assert.equal(actual, 0);
   });
 });
 

@@ -4,9 +4,11 @@
  * @property {string} simulatorCode
  * @property {SimulationStep[]} simulatorSteps
  */
-import functions from './wrapper-functions.js'
+import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getEvaluatedCode, getHighlightedCode, getVariables, getOutput } from './wrapper-functions.js'
 
 class Simulation {
+    isBreakStep = (s) => isExpressionStep(s) || isStatementStep(s);
+
     /**
      * DO NOT USE DIRECTLY
      * @param {Module} module
@@ -26,20 +28,20 @@ class Simulation {
             
             this.code = this.module.simulatorCode;
             this.allSteps = this.module.simulatorSteps;
-            this.currentStep = 0;
+            this.currentStep = getFirstStep(this.isBreakStep, this.allSteps);
         }
     }
 
-    stepForward(mode) {
-        let nextStep = functions.stepForward(this.allSteps, this.currentStep, mode || "expression");
+    stepForward() {
+        let nextStep = getNextStep(this.isBreakStep, this.allSteps, this.currentStep);
         if (nextStep !== undefined) this.currentStep = nextStep;
-        return !!nextStep;
+        return nextStep !== undefined;
     }
 
-    stepBackward(mode) {
-        let previousStep = functions.stepBackward(this.allSteps, this.currentStep, mode || "expression");
+    stepBackward() {
+        let previousStep = getPreviousStep(this.isBreakStep, this.allSteps, this.currentStep);
         this.currentStep = previousStep ?? 0;
-        return !!previousStep;
+        return previousStep !== undefined;
     }
 
     getCode() {
@@ -47,20 +49,20 @@ class Simulation {
     }
 
     getEvaluatedCode() {
-        return functions.getEvaluatedCode(this.code, this.allSteps.slice(0, this.currentStep + 1));
+        return getEvaluatedCode(this.code, this.allSteps.slice(0, this.currentStep + 1));
     }
 
     getHighlightedCode() {
-        return functions.getHighlightedCode(this.code, this.allSteps.slice(0, this.currentStep + 1)); 
+        return getHighlightedCode(this.code, this.allSteps.slice(0, this.currentStep + 1)); 
     }
 
     getOutput() {
         const prefix = "> program.exe\n";
-        return prefix + functions.getOutput(this.allSteps.slice(0, this.currentStep + 1))
+        return prefix + getOutput(this.allSteps.slice(0, this.currentStep + 1))
     }
 
     getVariables() {
-        return functions.getVariables(this.allSteps.slice(0, this.currentStep + 1))
+        return getVariables(this.allSteps.slice(0, this.currentStep + 1))
     }
 
     /**
