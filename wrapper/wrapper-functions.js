@@ -1,16 +1,28 @@
-
 /**
- * @typedef SimulationStep
- * @property {string} action
- * 
+ * @typedef SourceRange
+ * @property {number} startIndex
+ * @property {number} endIndex
  */
 
 /**
- * @typedef CodeSegment
+ * @typedef SourceSegment
  * @property {number} startIndex
  * @property {number} endIndex
  * @property {string} value
  */
+
+/**
+ * @typedef SimulationStep
+ * @property {string} action
+ */
+
+/**
+ * @typedef SimulationVariable
+ * @property {string} dataType
+ * @property {string} dataValue
+ * @property {SourceRange} scope
+ */
+
 
 // Based on https://stackoverflow.com/questions/40929260/find-last-index-of-element-inside-array-by-certain-condition
 function findLastIndex(array, predicate) {
@@ -47,6 +59,34 @@ export function isExpressionStep(step) {
 }
 
 /**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
+export function isDeclarationStep(step) {
+    return step.action == "decl";
+}
+
+/**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
+export function isAssignmentStep(step) {
+    return step.action == "decl";
+}
+
+export function isSubrange(range, subrange) {
+    return subrange.startIndex >= range.startIndex && subrange.endIndex <= range.endIndex;
+}
+
+export function isSubrangeStrict(range, subRange) {
+    return subRange.startIndex > range.startIndex && subRange.endIndex < range.endIndex;
+}
+
+export function isWithin(range, index) {
+    return index >= range.startIndex && index <= range.endIndex;
+}
+
+/**
  * getFirstStep returns first breakable step in step sequence (nullable)
  * @param {function(SimulationStep)} isBreakStep
  * @param {SimulationStep[]} steps
@@ -78,6 +118,16 @@ export function getPreviousStep(isBreakStep, steps, currentIndex) {
     return (offset !== -1) ? offset : undefined;
 }
 
+/**
+ * getCurrentStatementStep returns steps since and including last statement
+ * @param {function(SimulationStep)} isStatement 
+ * @param {SimulationStep[]} steps 
+ * @returns {SimulationStep|undefined} 
+ */
+export function getCurrentStatementStep(isStatement, steps) {
+    const index = steps.findLastIndex(isStatement);
+    return (index !== -1) ? steps[index] : undefined;    
+}
 
 /**
  * getCurrentStatementSteps returns steps since and including last statement
@@ -93,11 +143,11 @@ export function getCurrentStatementSteps(isStatement, steps) {
 /**
  * getEvaluatedSegment returns evaluated segment of code
  * @param {SimulationStep} expressionStep
- * @returns {CodeSegment}
+ * @returns {SourceSegment}
  */
 export function getEvaluatedSegment(expressionStep) {
     var value;
-    var { dataType, dataValue, startIndex, endIndex } = expressionStep;
+    var { dataType, dataValue, extent } = expressionStep;
    
     switch(dataType) {
         case "int":
@@ -110,12 +160,23 @@ export function getEvaluatedSegment(expressionStep) {
             value = `${dataValue}`;
             break;
     }
-    return { startIndex, endIndex, value };
+    return { startIndex: extent.startIndex, endIndex: extent.endIndex, value };
+}
+
+/**
+ * maskSegment returns 
+ * @param {SourceSegment} step 
+ * @returns {SourceSegment}
+ */
+export function maskSegment(step) {
+    const { startIndex, endIndex, value} = step;
+    const newValue = '█'.repeat(value.length);
+    return { startIndex, endIndex, value: newValue };
 }
 
 /**
  * getNonOverlappingSegments returns an ordered list of non-overlapping segments 
- * @param {CodeSegment []} codeSegments 
+ * @param {SourceSegment []} codeSegments 
  * 
  */
 export function getNonOverlappingSegments(codeSegments) {
@@ -125,8 +186,7 @@ export function getNonOverlappingSegments(codeSegments) {
     let buffer = [];
     for (let codeSegment of codeSegments) {
         // Remove any elements in buffer that 
-        const isWithinCodeSegment = (c) => c.startIndex >= codeSegment.startIndex && c.endIndex <= codeSegment.endIndex;
-        buffer = buffer.filter(c => !isWithinCodeSegment(c));
+        buffer = buffer.filter(c => !isSubrange(codeSegment, c));
         buffer.push(codeSegment);
     }
     return buffer;
@@ -135,7 +195,7 @@ export function getNonOverlappingSegments(codeSegments) {
 /**
  * replaceSegments returns code with replaced code segments
  * @param {string} code 
- * @param {CodeSegment[]} codeSegments - non-overlapping code segments
+ * @param {SourceSegment[]} codeSegments - non-overlapping code segments
  */
 export function replaceSegments(code, codeSegments) {
     if (codeSegments.length === 0)
@@ -173,6 +233,15 @@ export function getCurrentEvaluatedCode(code, steps) {
 }
 
 
+function getLocation(step) {
+    return [
+        step.extent.startLine, 
+        step.extent.startColumn, 
+        step.extent.endLine,
+        step.extent.endColumn
+    ];
+}
+
 /**
  * 
  * @param {string} code 
@@ -184,12 +253,12 @@ export function getEvaluatedCode(code, steps) {
     const lastStatementSteps = lastStatementIndex !== -1 ? steps.slice(lastStatementIndex) : steps;
     const expressionSteps = lastStatementSteps.filter(s => s.action === "eval");
     const activeExpressionSteps = expressionSteps.reduce(
-        (steps, value) => [...steps.filter(s => !isLocationWithinLocation(s.location, value.location)), value],
+        (steps, value) => [...steps.filter(s => !isLocationWithinLocation(getLocation(s), getLocation(value))), value],
         []
     );
     // Ordering steps according to start line and start charachter 
     activeExpressionSteps.sort(
-        (s1, s2) => (s1.location[0] == s2.location[0]) ?  s1.location[1] - s2.location[1] : s1.location[0] - s2.location[0]
+        (s1, s2) => (getLocation(s1)[0] == getLocation(s2)[0]) ?  getLocation(s1)[1] - getLocation(s2)[1] : getLocation(s1)[0] - getLocation(s2)[0]
     );
 
     return activeExpressionSteps.length ? getEvaluatedCodeInternal(code, activeExpressionSteps) : code;
@@ -201,12 +270,13 @@ function getEvaluatedCodeInternal(code, activeSteps) {
 
     for(let i = 0; i < activeSteps.length; i++) {
         const step = activeSteps[i];
+        const stepLocation = getLocation(step);
         const nextStep = (i < activeSteps.length - 1) ? activeSteps[i + 1] : undefined;
 
-        if (i == 0) buffer += getContentBeforeLocation(code, step.location);
+        if (i == 0) buffer += getContentBeforeLocation(code, stepLocation);
         buffer += step.dataValue + "";
-        if (nextStep) buffer += getContentBetweenLocations(code, step.location, nextStep.location);
-        else buffer += getContentAfterLocation(code, step.location);
+        if (nextStep) buffer += getContentBetweenLocations(code, stepLocation, stepLocation);
+        else buffer += getContentAfterLocation(code, stepLocation);
     }
     return buffer; 
 }
@@ -256,7 +326,12 @@ export function getHighlightedCode(code, steps) {
     const lastStatementIndex = steps.findLastIndex(s => s.action === "stat");
     if (lastStatementIndex === -1) return '';
     const lastStatement = steps[lastStatementIndex];
-    const location = lastStatement.location;
+    const location = [
+        lastStatement.extent.startLine,
+        lastStatement.extent.startColumn,
+        lastStatement.extent.endLine,
+        lastStatement.extent.endColumn,
+    ];
 
     const evaluatedCode = getEvaluatedCode(code, steps);
     const lines = evaluatedCode.split('\n');
@@ -294,7 +369,7 @@ export function getOutput(steps) {
  * @param {SimulationStep[]} steps 
  * @returns { identifier: string,  dataType: string, dataValue: object }
  */
-export function getVariables(steps) {
+export function getCurrentVariables(steps) {
     const declarations = steps.filter(s => s.action == 'decl');
     const assignments = steps.filter(s => s.action == "assign");
 
@@ -310,10 +385,18 @@ export function getVariables(steps) {
 
         return {
             identifier: d.identifier,
+            scope: d.scope,
             dataType: d.dataType,
             dataValue: currentValue.dataValue
         };
     });
-}   
+}
 
-export default { isStatementStep, isExpressionStep, getFirstStep, getNextStep, getPreviousStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables }
+export function getCurrentScopeVariables(steps) {
+    const currentStatement = getCurrentStatementStep(isStatementStep, steps);
+    const currentVariables = getCurrentVariables(steps);
+
+    return currentVariables.filter(v => isSubrange(v.scope, currentStatement.extent));
+}
+
+export default { isStatementStep, isExpressionStep, getFirstStep, getNextStep, getPreviousStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables: getCurrentVariables }

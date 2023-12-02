@@ -12,6 +12,37 @@ def get_code_index(code, location) -> int:
 def get_code_indexes(code, extent) -> (int, int):
     return (get_code_index(code, extent.start), get_code_index(code, extent.end))
 
+class SourceRange: 
+    def __init__(self, location: list[int]) -> None:
+        self.location = location
+
+    def get_location(self):
+        return self.location
+
+    def get_indicies(self, code): 
+        l = self.location
+        return [self._get_index(code, l[0], l[1]), self._get_index(code, l[2], l[3])]
+
+    def _get_index(self, code, line, column): 
+        current_l = line
+        current_c = column
+        lines = code.split("\n")
+        prior_lines = lines[0:current_l]
+        if len(prior_lines) > 0:
+            prior_lines[-1] = prior_lines[-1][0:current_c]
+            return len("\n".join(prior_lines))
+        else: 
+            return current_c
+
+    @staticmethod
+    def create(node: 'SourceNode') -> 'SourceRange':
+        return SourceRange([
+            node.node.extent.start.line, 
+            node.node.extent.start.column - 1,
+            node.node.extent.end.line,
+            node.node.extent.end.column - 1
+        ])
+
 class SourceToken: 
     def __init__(self) -> None:
         self.value = None
@@ -35,6 +66,9 @@ class SourceNode:
     
     def get_tokens(self) -> list[SourceToken]:
         return self.tokens
+
+    def get_range(self) -> SourceRange|None: 
+        return self.node and SourceRange.create(self)
 
     def is_statement(self):
         parent_type = SourceNodeResolver.get_type(self.parent)
@@ -145,6 +179,14 @@ class SourceNodeResolver:
         # Based on https://stackoverflow.com/questions/19053707/converting-snake-case-to-lower-camel-case-lowercamelcase
         kind = node.node.kind.name
         return "".join(x.capitalize() for x in kind.lower().split("_"))
+    
+    @staticmethod
+    def get_scope(node: SourceNode) -> SourceRange|None:
+        parent: SourceNode = node.parent
+        while parent is not None: 
+            if SourceNodeResolver.get_type(parent) in ["CompoundStmt", "ForStmt", "WhileStmt"]:
+                return parent.get_range()
+            parent = parent.parent
 
     @staticmethod
     def get_unary_operator(node: SourceNode) -> str:

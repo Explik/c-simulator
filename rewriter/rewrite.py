@@ -78,7 +78,7 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     write_file(c_target_path, c_target_content)
 
     print('\nGenerating code metadata file...')
-    notifications_json = [n.serialize() for n in composite_visitor.get_notifies()]
+    notifications_json = [n.serialize(source_content) for n in composite_visitor.get_notifies()]
     notification_json = "[\n    " + ",\n    ".join(notifications_json) +"\n  ]"
     code_json = json.dumps(source_content)
     js_target_content = (

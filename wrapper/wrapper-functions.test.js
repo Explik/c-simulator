@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedSegment, getNonOverlappingSegments, replaceSegments } from './wrapper-functions.js';
+import { getEvaluatedCode, getFirstStep, getCurrentVariables, getHighlightedCode, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedSegment, getNonOverlappingSegments, replaceSegments } from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
   it ('returns undefined when no step matches', function() {
@@ -455,7 +455,7 @@ describe('getVariables', function() {
       dataType: 'int',
       dataValue: 7
     }];
-    const actual = getVariables(steps);
+    const actual = getCurrentVariables(steps);
     const expected = [{
       identifier: 'i',
       dataType: 'int',
@@ -478,7 +478,7 @@ describe('getVariables', function() {
         dataValue: 8
       }
     ];
-    const actual = getVariables(steps);
+    const actual = getCurrentVariables(steps);
     const expected = [
       {
         identifier: 'i',
@@ -509,7 +509,7 @@ describe('getVariables', function() {
         dataValue: 8
       }
     ];
-    const actual = getVariables(steps);
+    const actual = getCurrentVariables(steps);
     const expected = [{
       identifier: 'i',
       dataType: 'int',
@@ -539,7 +539,7 @@ describe('getVariables', function() {
         dataValue: 9
       }
     ];
-    const actual = getVariables(steps);
+    const actual = getCurrentVariables(steps);
     const expected = [{
       identifier: 'i',
       dataType: 'int',
@@ -563,7 +563,7 @@ describe('getVariables', function() {
         dataValue: 8
       }
     ];
-    const actual = getVariables(steps);
+    const actual = getCurrentVariables(steps);
     const expected = [{
       identifier: 'i',
       dataType: 'double',

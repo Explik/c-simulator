@@ -1,6 +1,6 @@
 from copy import copy
 from modification_nodes import ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
-from source_nodes import SourceNode
+from source_nodes import SourceNode, SourceNodeResolver, SourceRange, get_code_indexes
 
 # See https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
@@ -10,11 +10,12 @@ def flatten(l):
 class BaseNotify():
     def __init__(self, node: SourceNode) -> None:
         self.node = node
-
+        
         self.action: str|None = None
+        self.extent:SourceRange|None = None
+        self.scope: SourceRange|None = None
         self.type:str|None = None
         self.identifier:str|None = None
-        self.location:str|None = None
         self.eval_identifier: str|None = None
         self.reference = "$ref"
 
@@ -27,7 +28,7 @@ class BaseNotify():
     def set_reference(self, reference: str): 
         self.reference = reference
 
-    def serialize(self):
+    def serialize(self, code):
         buffer = dict()
         buffer["ref"] = f"{self.reference}"
         buffer["action"] = f"\"{self.action}\""
@@ -36,12 +37,32 @@ class BaseNotify():
             buffer["dataType"] = f"\"{self.type}\""
         
         if (self.action in ["assign", "eval", "stat"]):
-            buffer["location"] = f"{self.location}"
+            buffer["extent"] = self.serialize_range(self.extent, code)
+
+        if (self.action in ["decl"]):
+            buffer["scope"] = self.serialize_range(self.scope, code)
 
         if (self.action in ["assign", "decl"]):
             buffer["identifier"] = f"\"{self.identifier}\""
 
-        items = [f"\"{key}\":{buffer[key]}" for key in buffer]
+        return self.serialize_dict(buffer)
+    
+    def serialize_range(self, range, code): 
+        (startLine, startColumn, endLine, endColumn) = range.get_location()
+        (startIndex, endIndex) = range.get_indicies(code)
+
+        buffer = dict()
+        buffer["startLine"] = startLine
+        buffer["startColumn"] = startColumn
+        buffer["endLine"] = endLine
+        buffer["endColumn"] = endColumn
+        buffer["startIndex"] = startIndex
+        buffer["endIndex"] = endIndex
+
+        return self.serialize_dict(buffer)
+
+    def serialize_dict(self, dict): 
+        items = [f"\"{key}\":{dict[key]}" for key in dict]
         serialized_items = ",".join(items)
         return "{" + serialized_items + "}"
 
@@ -50,12 +71,7 @@ class AssignNotifyData(BaseNotify):
         super().__init__(node)
         self.action = "assign"
         self.identifier = f"{identifier_node}"
-        self.location = [
-            node.node.extent.start.line, 
-            node.node.extent.start.column,
-            node.node.extent.end.line,
-            node.node.extent.end.column - 1
-        ]
+        self.extent = node.get_range()
         self.type = node.node.type.spelling
 
     def get_identifiers(self) -> list[str]:
@@ -67,6 +83,7 @@ class DeclNotifyData(BaseNotify):
         self.action = "decl"
         self.type = node.node.type.spelling
         self.identifier = node.node.spelling
+        self.scope = SourceNodeResolver.get_scope(node)
         self.eval_identifier = f"temp{node.id}"
 
     def get_identifiers(self) -> list[str]:
@@ -76,12 +93,7 @@ class EvalNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "eval"
-        self.location = [
-            node.node.extent.start.line, 
-            node.node.extent.start.column,
-            node.node.extent.end.line,
-            node.node.extent.end.column - 1
-        ]
+        self.extent = node.get_range()
         self.type = node.node.type.spelling
         self.eval_identifier = f"temp{node.id}"
 
@@ -92,12 +104,7 @@ class StatNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "stat"
-        self.location = [
-            node.node.extent.start.line, 
-            node.node.extent.start.column,
-            node.node.extent.end.line,
-            node.node.extent.end.column - 1
-        ]
+        self.extent = node.get_range()
 
 # Notify nodes
 class NotifyBaseReplaceNode(ReplaceModificationNode):
