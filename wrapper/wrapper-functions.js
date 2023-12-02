@@ -138,8 +138,10 @@ export function getNonOverlappingSegments(codeSegments) {
  * @param {CodeSegment[]} codeSegments - non-overlapping code segments
  */
 export function replaceSegments(code, codeSegments) {
-    const buffer = [];
+    if (codeSegments.length === 0)
+        return code;
     
+    const buffer = [];
     for(let i = 0; i < codeSegments.length; i++) {
         const segment = codeSegments[i];
         const nextSegment = (i < codeSegments.length - 1) ? codeSegments[i + 1] : undefined;
@@ -164,7 +166,7 @@ export function replaceSegments(code, codeSegments) {
  * @returns {string}
  */
 export function getCurrentEvaluatedCode(code, steps) {
-    const statementSteps = getCurrentStatementSteps(steps);
+    const statementSteps = getCurrentStatementSteps(isStatementStep, steps);
     const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedSegment);
     const nonOverlappingSegments = getNonOverlappingSegments(evaluatedSegments);
     return replaceSegments(code, nonOverlappingSegments);

@@ -238,6 +238,10 @@ describe("getEvaluatedCode", function() {
     });
   });
   describe("replaceSegments", function() {
+    it ("does nothing on no segments", function() {
+      const code = "int main() {}";
+      assert.equal(replaceSegments(code, []), code);
+    });
     it("replaces one segment in beginning correct", function() {
       const code = "int main() {}";
       const segments = [ { startIndex: 0, endIndex: 3, value: "double" } ];
