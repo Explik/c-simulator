@@ -187,7 +187,7 @@ class SourceNodeResolver:
     def get_scope(node: SourceNode) -> SourceRange|None:
         parent: SourceNode = node.parent
         while parent is not None: 
-            if SourceNodeResolver.get_type(parent) in ["CompoundStmt", "ForStmt", "WhileStmt"]:
+            if SourceNodeResolver.get_type(parent) in ["CompoundStmt", "ForStmt", "FunctionDecl", "WhileStmt"]:
                 return parent.get_range()
             parent = parent.parent
 

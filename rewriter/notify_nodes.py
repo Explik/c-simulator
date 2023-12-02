@@ -16,6 +16,7 @@ class BaseNotify():
         self.scope: SourceRange|None = None
         self.type:str|None = None
         self.identifier:str|None = None
+        self.parameters: list[str]|None = None
         self.eval_identifier: str|None = None
         self.statement_id: str|None = None
         self.reference = "$ref"
@@ -37,16 +38,16 @@ class BaseNotify():
         if self.action in ["stat"]: 
             buffer["statementId"] = f"{self.statement_id}"
 
-        if (self.action in ["assign", "eval", "decl", "return"]):
+        if (self.action in ["assign", "eval", "decl", "return", "invocation", "par"]):
             buffer["dataType"] = f"\"{self.type}\""
         
         if (self.action in ["assign", "eval", "stat", "return"]):
             buffer["extent"] = self.serialize_range(self.extent, code)
 
-        if (self.action in ["decl"]):
+        if (self.action in ["decl", "par"]):
             buffer["scope"] = self.serialize_range(self.scope, code)
 
-        if (self.action in ["assign", "decl"]):
+        if (self.action in ["assign", "decl", "invocation", "par"]):
             buffer["identifier"] = f"\"{self.identifier}\""
 
         return self.serialize_dict(buffer)
@@ -104,6 +105,24 @@ class EvalNotifyData(BaseNotify):
     def get_identifiers(self) -> list[str]:
         return [self.eval_identifier]
 
+class InvocationNotifyData(BaseNotify):
+    def __init__(self, node: SourceNode) -> None:
+        super().__init__(node)
+        self.action = "invocation"
+        self.type = node.node.type.spelling
+        self.identifier = node.node.spelling
+
+class ParameterNotifyData(BaseNotify):
+    def __init__(self, node: SourceNode) -> None:
+        super().__init__(node)
+        self.action = "par"
+        self.type = node.node.type.spelling
+        self.identifier = node.node.spelling
+        self.scope = SourceNodeResolver.get_scope(node)
+
+    def get_identifiers(self) -> list[str]:
+        return [self.identifier]
+
 class ReturnNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
@@ -140,23 +159,26 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         
         # Generate statement expression
         placeholders = []
-        identifiers = flatten([n.get_identifiers() for n in self.end_notifies])
+        start_identifiers = flatten([n.get_identifiers() for n in self.start_notifies])
+        end_identifiers = flatten([n.get_identifiers() for n in self.end_notifies])
 
         if before_node is not None: 
             placeholders.append(before_node)
 
         if any(self.start_notifies): 
             start_reference = self.start_notifies[0].get_reference()
-            placeholders.append(ConstantNode(f"notify_0({start_reference})"))
+            list_1 = [f"&{i}" for i in start_identifiers]
+            list_2 = [f"{start_reference}"] + list_1
+            placeholders.append(ConstantNode(f"notify_{len(start_identifiers)}({', '.join(list_2)})"))
         
         if middle_node is not None: 
             placeholders.append(middle_node)
         
         if any(self.end_notifies):
             end_reference = self.end_notifies[0].get_reference()
-            list_1 = [f"&{i}" for i in identifiers]
+            list_1 = [f"&{i}" for i in end_identifiers]
             list_2 = [f"{end_reference}"] + list_1
-            placeholders.append(ConstantNode(f"notify_{len(identifiers)}({', '.join(list_2)})"))
+            placeholders.append(ConstantNode(f"notify_{len(end_identifiers)}({', '.join(list_2)})"))
         
         if end_node is not None:  
             placeholders.append(end_node)
@@ -207,10 +229,10 @@ class PreExprNotifyReplaceNode(NotifyBaseReplaceNode):
         super().__init__(target)
 
     def with_start_notify(self, data: BaseNotify):
-        raise Exception("Use with_end_notify instead")
+        return self.with_end_notify(data)
     
     def with_start_notifies(self, data_list: list[BaseNotify]):
-        raise Exception("Use with_end_notifies instead")
+        return self.with_end_notifies(data_list)
 
     def apply(self, node: SourceNode) -> SourceNode:
         if any(self.end_notifies):

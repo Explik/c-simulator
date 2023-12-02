@@ -17,7 +17,7 @@ mergeInto(LibraryManager.library, {
         Module.simulatorSteps = Module.simulatorSteps || [];
 
         var notifyNotifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
-        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl"].includes(n.action));
+        var notifyDataNotifications = notifyNotifications.filter(n => ["assign", "eval", "decl", "par"].includes(n.action));
         var notifySteps = [];
         
         for(var i = 0; i < notifyDataNotifications.length; i++) {

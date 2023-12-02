@@ -2,7 +2,7 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -384,13 +384,19 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         return any(children) and SourceNodeResolver.get_type(children[-1]) == "CompoundStmt"
 
     def visit(self, source_node: SourceNode):
-        function_body_node = source_node.get_children()[-1]
+        children = source_node.get_children()
+        parameter_nodes = children[:-1]
+        notify_list = self.register([InvocationNotifyData(source_node)] + [ParameterNotifyData(n) for n in parameter_nodes])
+
+        function_body_node = children[-1]
         results = [self.callback(c) for c in function_body_node.get_children()]
         filtered_result = [r for r in results if r is not None]
+        filtered_result =  [filtered_result[0].with_start_notifies(notify_list)] + filtered_result[1:]
 
         notifies = self.deregister()
         filtered_notifies = [n for n in notifies if type(n) in [DeclNotifyData, EvalNotifyData, ReturnNotifyData]]
-        unique_notifies = filtered_notifies
+        identifiers = list(set([n.eval_identifier for n in filtered_notifies]))
+        unique_notifies = [next(n for n in filtered_notifies if n.eval_identifier == i) for i in identifiers]
         declarations = [f"{n.type} {n.eval_identifier};" for n in unique_notifies]
         declaration_block = ConstantNode("\n".join(declarations))
         filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
