@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode, getNextStep, getPreviousStep } from './wrapper-functions.js';
+import { getEvaluatedCode, getFirstStep, getVariables, getHighlightedCode, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedSegment, getNonOverlappingSegments, replaceSegments } from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
   it ('returns undefined when no step matches', function() {
@@ -149,6 +149,125 @@ describe("getPreviousStep", function() {
     assert.equal(actual, 1);
   });
 });
+
+describe("getEvaluatedCode", function() {
+  describe("getCurrentStatementSteps", function() {
+    it ('returns all steps when no step matches', function() {
+      const steps = [
+        { type: 'a' },
+        { type: 'b' },
+        { type: 'c' },
+        { type: 'd' },
+        { type: 'e' },
+      ];
+      const actual = getCurrentStatementSteps(() => false, steps);
+  
+      assert.deepEqual(actual, steps);
+    });
+    it ('returns latter half of steps when one step matches', function() {
+      const steps = [
+        { type: 'a' },
+        { type: 'b' },
+        { type: 'c' }, // statement step
+        { type: 'd' },
+        { type: 'e' },
+      ];
+      const statementSteps = [
+        { type: 'c' }, // statement step
+        { type: 'd' },
+        { type: 'e' },
+      ];
+      const actual = getCurrentStatementSteps(s => s.type === "c", steps);
+  
+      assert.deepEqual(actual, statementSteps);
+    });
+    it ('returns latter half of steps when one step matches', function() {
+      const steps = [
+        { type: 'a' },
+        { type: 'b' },
+        { type: 'c' }, // statement step
+        { type: 'd' }, // statement step
+        { type: 'e' },
+      ];
+      const statementSteps = [
+        { type: 'd' }, // statement step 
+        { type: 'e' },
+      ];
+      const actual = getCurrentStatementSteps(s => s.type === "c" || s.type === "d", steps);
+  
+      assert.deepEqual(actual, statementSteps);
+    });
+  });
+  describe("getEvaluatedSegment", function() {
+    it ("returns 1234 for int resulting value", function() {
+      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "int", dataValue: 1234.0};
+      const expected = { startIndex: 2, endIndex: 3, value: "1234" };
+      assert.deepEqual(getEvaluatedSegment(expressionStep), expected);
+    });
+    it ("returns 2345f for float resulting value", function() {
+      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "float", dataValue: 2345.0};
+      const expected = { startIndex: 2, endIndex: 3, value: "2345f" };
+      assert.deepEqual(getEvaluatedSegment(expressionStep), expected);
+    });
+  });
+  describe("getNonOverlappingSegments", function() {
+    it ("returns last element if elements fully overlaps", function() {
+      const codeSegments = [
+        { startIndex: 2, endIndex: 3, value: "a" },
+        { startIndex: 2, endIndex: 3, value: "1" }
+      ];
+      const expected = [ codeSegments[1] ];
+      assert.deepEqual(getNonOverlappingSegments(codeSegments), expected);
+    });
+
+    it ("returns last element if elements fully overlaps", function() {
+      const codeSegments = [
+        { startIndex: 2, endIndex: 3, value: "a" },
+        { startIndex: 2, endIndex: 4, value: "1" }
+      ];
+      const expected = [ codeSegments[1] ];
+      assert.deepEqual(getNonOverlappingSegments(codeSegments), expected);
+    });
+
+    it ("returns both elements if elements do not overlap", function() {
+      const codeSegments = [
+        { startIndex: 1, endIndex: 2, value: "a" },
+        { startIndex: 3, endIndex: 4, value: "b" }
+      ];
+      assert.deepEqual(getNonOverlappingSegments(codeSegments), codeSegments);
+    });
+  });
+  describe("replaceSegments", function() {
+    it("replaces one segment in beginning correct", function() {
+      const code = "int main() {}";
+      const segments = [ { startIndex: 0, endIndex: 3, value: "double" } ];
+      const expected = "double main() {}";
+      assert.equal(replaceSegments(code, segments), expected);
+    });
+    it("replaces one segment in middle correct", function() {
+      const code = "int main() {}";
+      const segments = [ { startIndex: 4, endIndex: 8, value: "main_2" } ];
+      const expected = "int main_2() {}";
+      assert.equal(replaceSegments(code, segments), expected);
+    });
+    it("replaces one segment at end correct", function() {
+      const code = "int main() {}";
+      const segments = [ { startIndex: 11, endIndex: 13, value: "{ exit(); }" } ];
+      const expected = "int main() { exit(); }";
+      assert.equal(replaceSegments(code, segments), expected);
+    });
+    it("replaces one segment in middle correct", function() {
+      const code = "int main() {}";
+      const segments = [ 
+        { startIndex: 0, endIndex: 3, value: "double" },
+        { startIndex: 11, endIndex: 13, value: "{ exit(); }" } 
+      ];
+      const expected = "double main() { exit(); }";
+      assert.equal(replaceSegments(code, segments), expected);
+    });
+  });
+});
+
 
 describe('getEvaluatedCode', function () {
   it('replaces expression at beginning', function () {

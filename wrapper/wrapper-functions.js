@@ -5,6 +5,13 @@
  * 
  */
 
+/**
+ * @typedef CodeSegment
+ * @property {number} startIndex
+ * @property {number} endIndex
+ * @property {string} value
+ */
+
 // Based on https://stackoverflow.com/questions/40929260/find-last-index-of-element-inside-array-by-certain-condition
 function findLastIndex(array, predicate) {
     let l = array.length;
@@ -70,6 +77,99 @@ export function getPreviousStep(isBreakStep, steps, currentIndex) {
     const offset = steps.slice(0, currentIndex).findLastIndex(isBreakStep);
     return (offset !== -1) ? offset : undefined;
 }
+
+
+/**
+ * getCurrentStatementSteps returns steps since and including last statement
+ * @param {function(SimulationStep)} isStatement 
+ * @param {SimulationStep[]} steps 
+ * @returns {SimulationStep[]} 
+ */
+export function getCurrentStatementSteps(isStatement, steps) {
+    const index = steps.findLastIndex(isStatement);
+    return (index !== -1) ? steps.slice(index) : steps;    
+}
+
+/**
+ * getEvaluatedSegment returns evaluated segment of code
+ * @param {SimulationStep} expressionStep
+ * @returns {CodeSegment}
+ */
+export function getEvaluatedSegment(expressionStep) {
+    var value;
+    var { dataType, dataValue, startIndex, endIndex } = expressionStep;
+   
+    switch(dataType) {
+        case "int":
+            value = `${dataValue}`;
+            break;
+        case "float":
+            value = `${dataValue}f`;
+            break;
+        default:
+            value = `${dataValue}`;
+            break;
+    }
+    return { startIndex, endIndex, value };
+}
+
+/**
+ * getNonOverlappingSegments returns an ordered list of non-overlapping segments 
+ * @param {CodeSegment []} codeSegments 
+ * 
+ */
+export function getNonOverlappingSegments(codeSegments) {
+    const orderedCodeSegments = [...codeSegments];
+    orderedCodeSegments.sort((s1, s2) => s2.startIndex - s1.startIndex);
+    
+    let buffer = [];
+    for (let codeSegment of codeSegments) {
+        // Remove any elements in buffer that 
+        const isWithinCodeSegment = (c) => c.startIndex >= codeSegment.startIndex && c.endIndex <= codeSegment.endIndex;
+        buffer = buffer.filter(c => !isWithinCodeSegment(c));
+        buffer.push(codeSegment);
+    }
+    return buffer;
+}
+
+/**
+ * replaceSegments returns code with replaced code segments
+ * @param {string} code 
+ * @param {CodeSegment[]} codeSegments - non-overlapping code segments
+ */
+export function replaceSegments(code, codeSegments) {
+    const buffer = [];
+    
+    for(let i = 0; i < codeSegments.length; i++) {
+        const segment = codeSegments[i];
+        const nextSegment = (i < codeSegments.length - 1) ? codeSegments[i + 1] : undefined;
+
+        if (i == 0) 
+            buffer.push(code.slice(0, segment.startIndex));
+        
+        buffer.push(segment.value);
+        
+        if (nextSegment)
+            buffer.push(code.slice(segment.endIndex, nextSegment.startIndex));
+        else
+            buffer.push(code.slice(segment.endIndex));
+    }
+    return buffer.join("");
+}
+
+/**
+ * getCurrentEvaluatedCode returns code with replaced evaluation steps
+ * @param {string} code 
+ * @param {SimulationStep[]} steps 
+ * @returns {string}
+ */
+export function getCurrentEvaluatedCode(code, steps) {
+    const statementSteps = getCurrentStatementSteps(steps);
+    const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedSegment);
+    const nonOverlappingSegments = getNonOverlappingSegments(evaluatedSegments);
+    return replaceSegments(code, nonOverlappingSegments);
+}
+
 
 /**
  * 
