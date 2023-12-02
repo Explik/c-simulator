@@ -37,10 +37,10 @@ class BaseNotify():
         if self.action in ["stat"]: 
             buffer["statementId"] = f"{self.statement_id}"
 
-        if (self.action in ["assign", "eval", "decl"]):
+        if (self.action in ["assign", "eval", "decl", "return"]):
             buffer["dataType"] = f"\"{self.type}\""
         
-        if (self.action in ["assign", "eval", "stat"]):
+        if (self.action in ["assign", "eval", "stat", "return"]):
             buffer["extent"] = self.serialize_range(self.extent, code)
 
         if (self.action in ["decl"]):
@@ -97,6 +97,17 @@ class EvalNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "eval"
+        self.extent = node.get_range()
+        self.type = node.node.type.spelling
+        self.eval_identifier = f"temp{node.id}"
+
+    def get_identifiers(self) -> list[str]:
+        return [self.eval_identifier]
+
+class ReturnNotifyData(BaseNotify):
+    def __init__(self, node: SourceNode) -> None:
+        super().__init__(node)
+        self.action = "return"
         self.extent = node.get_range()
         self.type = node.node.type.spelling
         self.eval_identifier = f"temp{node.id}"

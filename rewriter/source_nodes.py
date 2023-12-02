@@ -78,7 +78,7 @@ class SourceNode:
         grand_parent_type = self.parent and self.parent.parent and SourceNodeResolver.get_type(self.parent.parent)
         parent_children = self.parent.get_children()
 
-        if parent_type in ["CompoundStmt", "DeclStmt", "ReturnStmt"]:
+        if parent_type in ["CompoundStmt", "DeclStmt"]:
             return True
         
         if grand_parent_type in ["SwitchStmt"] and parent_children[0] == self:

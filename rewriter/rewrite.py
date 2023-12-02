@@ -4,7 +4,7 @@ import os
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, StatementTreeVisitor
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, StatementTreeVisitor
 
 def read_file(file_name): 
     f = open(file_name)
@@ -52,6 +52,7 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     partial_visitors = [
         PartialTreeVisitor_FunctionDecl(),
         PartialTreeVisitor_BreakStmt(),
+        PartialTreeVisitor_ReturnStmt(),
         PartialTreeVisitor_VarDecl_Initialized(),
         PartialTreeVisitor_VarDecl_Unitialized(),
         PartialTreeVisitor_CallExpr(),

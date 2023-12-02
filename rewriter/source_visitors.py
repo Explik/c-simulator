@@ -2,7 +2,7 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, PreExprNotifyReplaceNode, StatNotifyData, StmtNotifyReplaceNode
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -17,7 +17,7 @@ def is_statement(source_node: SourceNode):
         return False 
     
     parent_type = SourceNodeResolver.get_type(source_node.parent)
-    if parent_type in ["CompoundStmt", "ReturnStmt"]:
+    if parent_type in ["CompoundStmt"]:
         return True
     
     parent_children = source_node.parent.get_children()
@@ -363,6 +363,18 @@ class PartialTreeVisitor_BreakStmt(PartialTreeVisitor):
         stat_notify = self.register(StatNotifyData(source_node))
         return StmtNotifyReplaceNode(source_node).with_start_notify(stat_notify)
 
+# Transforms return x; to return notify(), temp = x, notify(), temp
+class PartialTreeVisitor_ReturnStmt(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "ReturnStmt"
+           
+    def visit(self, source_node: SourceNode):
+        child = source_node.get_children()[0]
+        notify_data_start = self.register(StatNotifyData(source_node))
+        notify_data_end = self.register(ReturnNotifyData(child))
+        child_result = self.callback(child)
+        return child_result.with_start_notify(notify_data_start).with_end_notify(notify_data_end)
+
 class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor): 
     def can_visit(self, source_node: SourceNode):
         if (SourceNodeResolver.get_type(source_node) != "FunctionDecl"):
@@ -377,7 +389,7 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         filtered_result = [r for r in results if r is not None]
 
         notifies = self.deregister()
-        filtered_notifies = [n for n in notifies if isinstance(n, DeclNotifyData) or isinstance(n, EvalNotifyData)]
+        filtered_notifies = [n for n in notifies if type(n) in [DeclNotifyData, EvalNotifyData, ReturnNotifyData]]
         unique_notifies = filtered_notifies
         declarations = [f"{n.type} {n.eval_identifier};" for n in unique_notifies]
         declaration_block = ConstantNode("\n".join(declarations))
