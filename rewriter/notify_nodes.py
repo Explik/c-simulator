@@ -17,6 +17,7 @@ class BaseNotify():
         self.type:str|None = None
         self.identifier:str|None = None
         self.eval_identifier: str|None = None
+        self.statement_id: str|None = None
         self.reference = "$ref"
 
     def get_identifiers(self) -> list[str]: 
@@ -32,6 +33,9 @@ class BaseNotify():
         buffer = dict()
         buffer["ref"] = f"{self.reference}"
         buffer["action"] = f"\"{self.action}\""
+
+        if self.action in ["stat"]: 
+            buffer["statementId"] = f"{self.statement_id}"
 
         if (self.action in ["assign", "eval", "decl"]):
             buffer["dataType"] = f"\"{self.type}\""
@@ -104,6 +108,7 @@ class StatNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "stat"
+        self.statement_id = node.id
         self.extent = node.get_range()
 
 # Notify nodes

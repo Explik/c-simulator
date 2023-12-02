@@ -4,7 +4,7 @@
  * @property {string} simulatorCode
  * @property {SimulationStep[]} simulatorSteps
  */
-import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getHighlightedCode, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode } from './wrapper-functions.js'
+import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getHighlightedCode, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode, getCurrentStatementStep } from './wrapper-functions.js'
 
 class Simulation {
     isBreakStep = (s) => isExpressionStep(s) || isStatementStep(s);
@@ -63,6 +63,12 @@ class Simulation {
 
     getVariables() {
         return getCurrentScopeVariables(this.allSteps.slice(0, this.currentStep + 1))
+    }
+
+    getCurrentStatement() {
+        const currentStatementStep = getCurrentStatementStep(isStatementStep, this.allSteps.slice(0, this.currentStep + 1))
+        const currentStatement = this.module.simulatorStatements.find(s => s.id == currentStatementStep.statementId);
+        return currentStatement.ref;
     }
 
     /**

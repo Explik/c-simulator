@@ -71,8 +71,11 @@ class SourceNode:
         return self.node and SourceRange.create(self)
 
     def is_statement(self):
+        if self.parent is None: 
+            return False
+
         parent_type = SourceNodeResolver.get_type(self.parent)
-        grand_parent_type = self.parent and SourceNodeResolver.get_type(self.parent.parent)
+        grand_parent_type = self.parent and self.parent.parent and SourceNodeResolver.get_type(self.parent.parent)
         parent_children = self.parent.get_children()
 
         if parent_type in ["CompoundStmt", "DeclStmt", "ReturnStmt"]:

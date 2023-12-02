@@ -4,7 +4,7 @@ import os
 import clang.cindex
 from ast_visitors import AstPrinter
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, StatementTreeVisitor
 
 def read_file(file_name): 
     f = open(file_name)
@@ -78,15 +78,22 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     write_file(c_target_path, c_target_content)
 
     print('\nGenerating code metadata file...')
+    statement_visitor = StatementTreeVisitor()
+    statement_visitor.visit(source_root)
+    statements_json = [n.serialize() for n in statement_visitor.get_statements()]
+    statement_json = "[\n    " + ",\n    ".join(statements_json) +"\n  ]"
+
     notifications_json = [n.serialize(source_content) for n in composite_visitor.get_notifies()]
     notification_json = "[\n    " + ",\n    ".join(notifications_json) +"\n  ]"
+    
     code_json = json.dumps(source_content)
+    
     js_target_content = (
         "var Module = Module || { };\n"
         "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
         "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
         "Module.preRun = Module.preRun || [];\n"
-        f"Module.preRun.push(function() {{\n  Module.simulatorCode = {code_json};\n  Module.simulatorNotifications = {notification_json}; \n}})"
+        f"Module.preRun.push(function() {{\n  Module.simulatorCode = {code_json};\n  Module.simulatorStatements = {statement_json};\n Module.simulatorNotifications = {notification_json}; \n}})"
     )
     write_file(js_target_path, js_target_content)
 
