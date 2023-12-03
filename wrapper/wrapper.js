@@ -40,7 +40,7 @@ class Simulation {
 
     stepBackward() {
         let previousStep = getPreviousStep(this.isBreakStep, this.allSteps, this.currentStep);
-        this.currentStep = previousStep ?? 0;
+        if (previousStep !== undefined) this.currentStep = previousStep;
         return previousStep !== undefined;
     }
 
