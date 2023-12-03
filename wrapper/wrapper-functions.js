@@ -370,7 +370,7 @@ export function getOutput(steps) {
  * @returns { identifier: string,  dataType: string, dataValue: object }
  */
 export function getCurrentVariables(steps) {
-    const declarations = steps.filter(s => s.action == 'decl');
+    const declarations = steps.filter(s => s.action == 'decl' || s.action == "par");
     const assignments = steps.filter(s => s.action == "assign");
 
     const groupedDeclarations = groupBy(declarations, 'identifier');
