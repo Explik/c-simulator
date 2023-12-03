@@ -74,6 +74,13 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
         "void notify_1(int ref, void* ptr1);",
         "void notify_2(int ref, void* ptr1, void* ptr2);",
         "void notify_3(int ref, void* ptr1, void* ptr2, void* ptr3);",
+        "void notify_4(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4);",
+        "void notify_5(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5);",
+        "void notify_6(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5, void* ptr6);",
+        "void notify_7(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5, void* ptr6, void* ptr7);",
+        "void notify_8(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5, void* ptr6, void* ptr7, void* ptr8);",
+        "void notify_9(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5, void* ptr6, void* ptr7, void* ptr8, void* ptr9);",
+        "void notify_10(int ref, void* ptr1, void* ptr2, void* ptr3, void* ptr4, void* ptr5, void* ptr6, void* ptr7, void* ptr8, void* ptr9, void* ptr10);",
     ])
     c_target_content = f"{c_target_declarations}\n{modified_source_root}"
     write_file(c_target_path, c_target_content)
