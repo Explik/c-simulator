@@ -35,7 +35,7 @@ def get_path_with_extension(source_path, file_extension):
     else: 
         return file_name + "." + file_extension    
 
-def generate_temp_files(source_path, c_target_path, js_target_path):
+def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     source_content = read_file(source_path)
     
     print('\nGenerating AST...')
@@ -89,13 +89,10 @@ def generate_temp_files(source_path, c_target_path, js_target_path):
     
     code_json = json.dumps(source_content)
     
-    js_target_content = (
-        "var Module = Module || { };\n"
-        "Module.print = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stdout\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
-        "Module.printErr = function() { \n   Module.simulatorSteps = Module.simulatorSteps || [];\n   Module.simulatorSteps.push({ action: \"stderr\", value: Array.from(arguments).join(\"\") + \"\\\\n\\n\"});\n}\n"
-        "Module.preRun = Module.preRun || [];\n"
-        f"Module.preRun.push(function() {{\n  Module.simulatorCode = {code_json};\n  Module.simulatorStatements = {statement_json};\n Module.simulatorNotifications = {notification_json}; \n}})"
-    )
+    js_target_content = read_file(prejs_path)
+    js_target_content = js_target_content.replace("{code}", code_json) 
+    js_target_content = js_target_content.replace("{statements}", statement_json)
+    js_target_content = js_target_content.replace("{notifications}", notification_json)
     write_file(js_target_path, js_target_content)
 
 if __name__ == "__main__":
@@ -106,9 +103,10 @@ if __name__ == "__main__":
     input_file = 'C:\\Users\\ovs\\source\\repos\\c-simulator\\examples\\basic-example\\main.c' #sys.argv[1]
 
     # Generate temporary files 
+    prejs_path = get_path_with_name(script_file, 'prejs.js')
     temp_c_path = get_path_with_extension(input_file, 'g.c')
     temp_js_path = get_path_with_extension(input_file, 'g.js')
-    generate_temp_files(input_file, temp_c_path, temp_js_path)
+    generate_temp_files(input_file, prejs_path, temp_c_path, temp_js_path)
 
     # Generate output file
     library_path = get_path_with_name(script_file, 'library.js')
