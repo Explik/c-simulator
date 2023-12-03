@@ -66,7 +66,7 @@ class Simulation {
     }
 
     getCurrentStatement() {
-        const currentStatementStep = getCurrentStatementStep(isStatementStep, this.allSteps.slice(0, this.currentStep + 1))
+        const currentStatementStep = getCurrentStatementStep(this.allSteps.slice(0, this.currentStep + 1))
         const currentStatement = this.module.simulatorStatements.find(s => s.id == currentStatementStep.statementId);
         return currentStatement.ref;
     }

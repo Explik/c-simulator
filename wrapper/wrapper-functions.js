@@ -74,6 +74,22 @@ export function isAssignmentStep(step) {
     return step.action == "decl";
 }
 
+/**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
+export function isInvocationStep(step) {
+    return step.action == "invocation";
+}
+
+/**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
+export function isReturnStep(step) {
+    return step.action == "return";
+}
+
 export function isSubrange(range, subrange) {
     return subrange.startIndex >= range.startIndex && subrange.endIndex <= range.endIndex;
 }
@@ -124,9 +140,23 @@ export function getPreviousStep(isBreakStep, steps, currentIndex) {
  * @param {SimulationStep[]} steps 
  * @returns {SimulationStep|undefined} 
  */
-export function getCurrentStatementStep(isStatement, steps) {
-    const index = steps.findLastIndex(isStatement);
-    return (index !== -1) ? steps[index] : undefined;    
+export function getCurrentStatementStep(steps) {
+    const callstack = [[]];
+    for (let step of steps) {
+        if(isInvocationStep(step)) {
+            callstack.push([]);
+            callstack[callstack.length - 1].push(step);
+        }
+        else if (isReturnStep(step)) {
+            callstack.pop();
+        }
+        else {
+            callstack[callstack.length - 1].push(step);
+        }
+    }
+    const frame = callstack[callstack.length - 1];
+    const index = frame.findLastIndex(isStatementStep);
+    return (index !== -1) ? frame[index] : undefined;    
 }
 
 /**
@@ -135,9 +165,23 @@ export function getCurrentStatementStep(isStatement, steps) {
  * @param {SimulationStep[]} steps 
  * @returns {SimulationStep[]} 
  */
-export function getCurrentStatementSteps(isStatement, steps) {
-    const index = steps.findLastIndex(isStatement);
-    return (index !== -1) ? steps.slice(index) : steps;    
+export function getCurrentStatementSteps(steps) {
+    const callstack = [[]];
+    for (let step of steps) {
+        if(isInvocationStep(step)) {
+            callstack.push([]);
+            callstack[callstack.length - 1].push(step);
+        }
+        else if (isReturnStep(step)) {
+            callstack.pop();
+        }
+        else {
+            callstack[callstack.length - 1].push(step);
+        }
+    }
+    const frame = callstack[callstack.length - 1];
+    const index = frame.findLastIndex(isStatementStep);
+    return (index !== -1) ? frame.slice(index) : frame;    
 }
 
 /**
@@ -226,7 +270,7 @@ export function replaceSegments(code, codeSegments) {
  * @returns {string}
  */
 export function getCurrentEvaluatedCode(code, steps) {
-    const statementSteps = getCurrentStatementSteps(isStatementStep, steps);
+    const statementSteps = getCurrentStatementSteps(steps);
     const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedSegment);
     const nonOverlappingSegments = getNonOverlappingSegments(evaluatedSegments);
     return replaceSegments(code, nonOverlappingSegments);
@@ -323,9 +367,8 @@ function getContentAfterLocation(code, location) {
 }
 
 export function getHighlightedCode(code, steps) {
-    const lastStatementIndex = steps.findLastIndex(s => s.action === "stat");
-    if (lastStatementIndex === -1) return '';
-    const lastStatement = steps[lastStatementIndex];
+    const lastStatement = getCurrentStatementStep(steps);
+    if (lastStatement === undefined) return ''; 
     const location = [
         lastStatement.extent.startLine,
         lastStatement.extent.startColumn,
@@ -393,7 +436,7 @@ export function getCurrentVariables(steps) {
 }
 
 export function getCurrentScopeVariables(steps) {
-    const currentStatement = getCurrentStatementStep(isStatementStep, steps);
+    const currentStatement = getCurrentStatementStep(steps);
     const currentVariables = getCurrentVariables(steps);
 
     return currentVariables.filter(v => isSubrange(v.scope, currentStatement.extent));

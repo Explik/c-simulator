@@ -154,46 +154,81 @@ describe("getEvaluatedCode", function() {
   describe("getCurrentStatementSteps", function() {
     it ('returns all steps when no step matches', function() {
       const steps = [
-        { type: 'a' },
-        { type: 'b' },
-        { type: 'c' },
-        { type: 'd' },
-        { type: 'e' },
+        { action: "eval" },
+        { action: "eval" },
+        { action: "eval" },
+        { action: "eval" },
+        { action: "eval" },
       ];
-      const actual = getCurrentStatementSteps(() => false, steps);
+      const actual = getCurrentStatementSteps(steps);
   
       assert.deepEqual(actual, steps);
     });
     it ('returns latter half of steps when one step matches', function() {
       const steps = [
-        { type: 'a' },
-        { type: 'b' },
-        { type: 'c' }, // statement step
-        { type: 'd' },
-        { type: 'e' },
+        { action: "eval" },
+        { action: "eval" },
+        { action: "stat" }, // statement step
+        { action: "eval" },
+        { action: "eval" },
       ];
       const statementSteps = [
-        { type: 'c' }, // statement step
-        { type: 'd' },
-        { type: 'e' },
+        { action: "stat" }, // statement step
+        { action: "eval" },
+        { action: "eval" },
       ];
-      const actual = getCurrentStatementSteps(s => s.type === "c", steps);
+      const actual = getCurrentStatementSteps(steps);
   
       assert.deepEqual(actual, statementSteps);
     });
     it ('returns latter half of steps when one step matches', function() {
       const steps = [
-        { type: 'a' },
-        { type: 'b' },
-        { type: 'c' }, // statement step
-        { type: 'd' }, // statement step
-        { type: 'e' },
+        { action: "eval" },
+        { action: "eval" },
+        { action: "stat" }, // statement step
+        { action: "stat" }, // statement step
+        { action: "eval" },
       ];
       const statementSteps = [
-        { type: 'd' }, // statement step 
-        { type: 'e' },
+        { action: "stat" }, // statement step 
+        { action: "eval" },
       ];
-      const actual = getCurrentStatementSteps(s => s.type === "c" || s.type === "d", steps);
+      const actual = getCurrentStatementSteps(steps);
+  
+      assert.deepEqual(actual, statementSteps);
+    });
+    it ('returns all steps after statement if no return', function() {
+      const steps = [
+        { action: "stat" },
+        { action: "invocation" },
+        { action: "stat" }, // statement step
+        { action: "eval" },
+        { action: "eval" },
+      ];
+      const statementSteps = [
+        { action: "stat" }, // statement step 
+        { action: "eval" },
+        { action: "eval" },
+      ];
+      const actual = getCurrentStatementSteps(steps);
+  
+      assert.deepEqual(actual, statementSteps);
+    });
+    it ('returns all steps prior to invoke with return', function() {
+      const steps = [
+        { action: "stat" }, // statement step 
+        { action: "invocation" },
+        { action: "stat" }, // statement step
+        { action: "return" },
+        { action: "eval" }, // statement step
+        { action: "eval" }
+      ];
+      const statementSteps = [
+        { action: "stat" }, // statement step 
+        { action: "eval" },
+        { action: "eval" },
+      ];
+      const actual = getCurrentStatementSteps(steps);
   
       assert.deepEqual(actual, statementSteps);
     });
