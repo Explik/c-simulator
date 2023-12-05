@@ -30,6 +30,14 @@ class Simulation {
             
             // Link data 
             module.simulatorSteps.forEach(s => s.node = module.simulatorNodes.find(n => n.id == s.nodeId));
+            module.simulatorNodes.forEach(n => {
+                n.parent = module.simulatorNodes.find(n2 => n2.id == n.parentId);
+                if (n.parent) {
+                    n.parent.children = n.parent?.children ?? [];
+                    n.parent.children.push(n);
+                }
+            });
+
             module.simulatorSteps.filter(s => s.node).forEach(s => s.snippet = module.simulatorCode.slice(s.node.range[0], s.node.range[1]));
             
             // Expose data 
