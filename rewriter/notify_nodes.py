@@ -12,7 +12,6 @@ class BaseNotify():
         self.node = node
         
         self.action: str|None = None
-        self.extent:SourceRange|None = None
         self.scope: SourceRange|None = None
         self.type:str|None = None
         self.identifier:str|None = None
@@ -33,6 +32,7 @@ class BaseNotify():
     def serialize(self, code):
         buffer = dict()
         buffer["ref"] = f"{self.reference}"
+        buffer["nodeId"] = int(f"{self.reference}"[1:])
         buffer["action"] = f"\"{self.action}\""
 
         if self.action in ["stat"]: 
@@ -41,9 +41,6 @@ class BaseNotify():
         if (self.action in ["assign", "eval", "decl", "return", "invocation", "par"]):
             buffer["dataType"] = f"\"{self.type}\""
         
-        if (self.action in ["assign", "eval", "stat", "return"]):
-            buffer["extent"] = self.serialize_range(self.extent, code)
-
         if (self.action in ["decl", "par"]):
             buffer["scope"] = self.serialize_range(self.scope, code)
 
@@ -76,7 +73,6 @@ class AssignNotifyData(BaseNotify):
         super().__init__(node)
         self.action = "assign"
         self.identifier = f"{identifier_node}"
-        self.extent = node.get_range()
         self.type = node.node.type.spelling
 
     def get_identifiers(self) -> list[str]:
@@ -98,7 +94,6 @@ class EvalNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "eval"
-        self.extent = node.get_range()
         self.type = node.node.type.spelling
         self.eval_identifier = f"temp{node.id}"
 
@@ -127,7 +122,6 @@ class ReturnNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "return"
-        self.extent = node.get_range()
         self.type = node.node.type.spelling
         self.eval_identifier = f"temp{node.id}"
 
@@ -139,7 +133,6 @@ class StatNotifyData(BaseNotify):
         super().__init__(node)
         self.action = "stat"
         self.statement_id = node.id
-        self.extent = node.get_range()
 
 # Notify nodes
 class NotifyBaseReplaceNode(ReplaceModificationNode):

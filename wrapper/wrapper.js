@@ -23,11 +23,18 @@ class Simulation {
 
     run() {
         if (!this.isRunning) {
+            // Run simulation
+            const module = this.module;
             this.isRunning = true;
-            this.module._main();
+            module._main();
             
-            this.code = this.module.simulatorCode;
-            this.allSteps = this.module.simulatorSteps;
+            // Link data 
+            module.simulatorSteps.forEach(s => s.node = module.simulatorNodes.find(n => n.id == s.nodeId));
+            module.simulatorSteps.filter(s => s.node).forEach(s => s.snippet = module.simulatorCode.slice(s.node.range[0], s.node.range[1]));
+            
+            // Expose data 
+            this.code = module.simulatorCode;
+            this.allSteps = module.simulatorSteps;
             this.currentStep = getFirstStep(this.isBreakStep, this.allSteps);
         }
     }
@@ -67,7 +74,7 @@ class Simulation {
 
     getCurrentStatement() {
         const currentStatementStep = getCurrentStatementStep(this.allSteps.slice(0, this.currentStep + 1))
-        const currentStatement = this.module.simulatorStatements.find(s => s.id == currentStatementStep.statementId);
+        const currentStatement = this.module.simulatorNodes.find(s => s.id == currentStatementStep.statementId);
         return currentStatement.ref;
     }
 

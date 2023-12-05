@@ -98,20 +98,23 @@ class ReplaceIdentifierSourceTreeVisitor(SourceTreeVisitor):
         else: 
             return None
 
-# Statement visitors 
-class StatementData: 
-    def __init__(self, id, parent_id, type, line, reference) -> None:
-        self.id = id
-        self.parent_id = parent_id
-        self.type = type
-        self.line = line
-        self.reference = reference
+# Node visitors 
+class NodeData: 
+    def __init__(self, node: SourceNode) -> None:
+        self.id = node.id
+        self.parent_id = node.parent and node.parent.id
+        self.type = SourceNodeResolver.get_type(node)
+        self.range = node.get_range()
+        self.reference = f"{self.range.get_location()[0]}:x"
 
-    def serialize(self):
+    def serialize(self, code):
+        (startIndex, endIndex) = self.range.get_indicies(code)
+
         buffer = dict()
         buffer["id"] = self.id
-        buffer["parentId"] = self.parent_id
+        buffer["parentId"] = self.parent_id or "undefined"
         buffer["type"] = "\"" + self.type + "\""
+        buffer["range"] = f"[{startIndex}, {endIndex}]"
         buffer["ref"] = "\"" + self.reference + "\""
         return self.serialize_dict(buffer)
 
@@ -119,30 +122,18 @@ class StatementData:
         items = [f"\"{key}\":{dict[key]}" for key in dict]
         serialized_items = ",".join(items)
         return "{" + serialized_items + "}" 
-    
-    @staticmethod
-    def create(source_node: SourceNode, reference) -> 'StatementData': 
-        return StatementData(
-            source_node.id, 
-            source_node.parent and source_node.parent.id, 
-            SourceNodeResolver.get_type(source_node), 
-            source_node.get_range().get_location()[0],
-            reference)
 
-class StatementTreeVisitor(SourceTreeVisitor):
+class NodeTreeVisitor(SourceTreeVisitor):
     def __init__(self) -> None:
         super().__init__()
-        self.statements: list[StatementData] = []
+        self.nodes: list[NodeData] = []
 
     def generic_visit(self, source_node: SourceNode):
-        if source_node.is_statement():
-            source_node_line = source_node.get_range().get_location()[0]
-            source_node_ref = len([n for n in self.statements if n.line == source_node_line]) + 1
-            self.statements.append(StatementData.create(source_node, f"l{source_node_line}:{source_node_ref}"))
+        self.nodes.append(NodeData(source_node))
         return super().generic_visit(source_node)
     
-    def get_statements(self): 
-        return self.statements
+    def get_nodes(self):
+        return self.nodes
 
 # Transformation visitors 
 class PartialTreeVisitor():
@@ -335,7 +326,7 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
 # Transforms int a = 0, b = 1; to int a 
 class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl" and any(source_node.get_children())
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and any(c for c in source_node.get_children() if SourceNodeResolver.get_type(c) != "TypeRef")
 
     def visit(self, source_node: SourceNode):
         stat_notify = self.register(StatNotifyData(source_node))

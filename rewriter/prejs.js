@@ -44,6 +44,6 @@ Module.notify = function(reference, dataPointers) {
 Module.preRun = Module.preRun || [];
 Module.preRun.push(function() {
   Module.simulatorCode = {code};
-  Module.simulatorStatements = {statements};
+  Module.simulatorNodes = {statements};
   Module.simulatorNotifications = {notifications};
 });

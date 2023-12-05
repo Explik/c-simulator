@@ -91,11 +91,11 @@ export function isReturnStep(step) {
 }
 
 export function isSubrange(range, subrange) {
-    return subrange.startIndex >= range.startIndex && subrange.endIndex <= range.endIndex;
+    return subrange[0] >= range.startIndex && subrange[1] <= range.endIndex;
 }
 
 export function isSubrangeStrict(range, subRange) {
-    return subRange.startIndex > range.startIndex && subRange.endIndex < range.endIndex;
+    return subRange[0] > range.startIndex && subRange[1] < range.endIndex;
 }
 
 export function isWithin(range, index) {
@@ -191,7 +191,7 @@ export function getCurrentStatementSteps(steps) {
  */
 export function getEvaluatedSegment(expressionStep) {
     var value;
-    var { dataType, dataValue, extent } = expressionStep;
+    var { dataType, dataValue, node } = expressionStep;
    
     switch(dataType) {
         case "int":
@@ -204,7 +204,7 @@ export function getEvaluatedSegment(expressionStep) {
             value = `${dataValue}`;
             break;
     }
-    return { startIndex: extent.startIndex, endIndex: extent.endIndex, value };
+    return { startIndex: node.range[0], endIndex: node.range[1], value };
 }
 
 /**
@@ -276,16 +276,6 @@ export function getCurrentEvaluatedCode(code, steps) {
     return replaceSegments(code, nonOverlappingSegments);
 }
 
-
-function getLocation(step) {
-    return [
-        step.extent.startLine, 
-        step.extent.startColumn, 
-        step.extent.endLine,
-        step.extent.endColumn
-    ];
-}
-
 /**
  * 
  * @param {string} code 
@@ -297,15 +287,32 @@ export function getEvaluatedCode(code, steps) {
     const lastStatementSteps = lastStatementIndex !== -1 ? steps.slice(lastStatementIndex) : steps;
     const expressionSteps = lastStatementSteps.filter(s => s.action === "eval");
     const activeExpressionSteps = expressionSteps.reduce(
-        (steps, value) => [...steps.filter(s => !isLocationWithinLocation(getLocation(s), getLocation(value))), value],
+        (steps, value) => [...steps.filter(s => !isLocationWithinLocation(s.location, value.location)), value],
         []
     );
     // Ordering steps according to start line and start charachter 
     activeExpressionSteps.sort(
-        (s1, s2) => (getLocation(s1)[0] == getLocation(s2)[0]) ?  getLocation(s1)[1] - getLocation(s2)[1] : getLocation(s1)[0] - getLocation(s2)[0]
+        (s1, s2) => (s1.location[0] == s2.location[0]) ? s1.location[1] - s2.location[1] : s1.location[0] - s2.location[0]
     );
 
     return activeExpressionSteps.length ? getEvaluatedCodeInternal(code, activeExpressionSteps) : code;
+}
+
+function getLegacyLocation(code, range) {
+    if (typeof code !== "string")
+        throw Error("code is not of type string");
+    if (!Array.isArray(range))
+        throw Error("range is not of type Array");
+
+    var startLines = code.slice(0, range[0]).split("\n");
+    var endLines = code.slice(0, range[1]).split("\n");
+
+    return [
+        startLines.length,
+        startLines[startLines.length - 1].length,
+        endLines.length,
+        endLines[endLines.length - 1].length
+    ];
 }
 
 // Calculates evaluated code from a list of ordered non-overlapping steps
@@ -314,7 +321,7 @@ function getEvaluatedCodeInternal(code, activeSteps) {
 
     for(let i = 0; i < activeSteps.length; i++) {
         const step = activeSteps[i];
-        const stepLocation = getLocation(step);
+        const stepLocation = step.location;
         const nextStep = (i < activeSteps.length - 1) ? activeSteps[i + 1] : undefined;
 
         if (i == 0) buffer += getContentBeforeLocation(code, stepLocation);
@@ -367,17 +374,15 @@ function getContentAfterLocation(code, location) {
 }
 
 export function getHighlightedCode(code, steps) {
+    steps.filter(s => s.node).forEach(s => s.location = getLegacyLocation(code, s.node.range));
+
     const lastStatement = getCurrentStatementStep(steps);
     if (lastStatement === undefined) return ''; 
-    const location = [
-        lastStatement.extent.startLine,
-        lastStatement.extent.startColumn,
-        lastStatement.extent.endLine,
-        lastStatement.extent.endColumn,
-    ];
-
+    
+    const location = lastStatement.location;
     const evaluatedCode = getEvaluatedCode(code, steps);
     const lines = evaluatedCode.split('\n');
+    delete lastStatement.location;
     
     const create = (n, v) => Array.from({length: n}, () => v).join(''); 
     const createLines = (n) => Array.from({length: n}, () => '');
@@ -439,7 +444,7 @@ export function getCurrentScopeVariables(steps) {
     const currentStatement = getCurrentStatementStep(steps);
     const currentVariables = getCurrentVariables(steps);
 
-    return currentVariables.filter(v => isSubrange(v.scope, currentStatement.extent));
+    return currentVariables.filter(v => isSubrange(v.scope, currentStatement.node.range));
 }
 
 export default { isStatementStep, isExpressionStep, getFirstStep, getNextStep, getPreviousStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables: getCurrentVariables }
