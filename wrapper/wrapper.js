@@ -76,7 +76,7 @@ class Simulation {
         return prefix + getOutput(this.allSteps.slice(0, this.currentStep + 1))
     }
 
-    getVariables() {
+    getCurrentScopeVariables() {
         return getCurrentScopeVariables(this.allSteps.slice(0, this.currentStep + 1))
     }
 

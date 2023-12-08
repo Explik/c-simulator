@@ -17,6 +17,21 @@
  */
 
 /**
+ * @typedef SimulationEvalStep
+ * @property {string} action
+ * @property {string} dataType
+ * @property {number} dataValue
+ */
+
+/**
+ * @typedef SimulationDeclStep
+ * @property {string} action
+ * @property {string} identifier
+ * @property {string} dataType
+ * @property {number} dataValue
+ */
+
+/**
  * @typedef SimulationVariable
  * @property {string} dataType
  * @property {string} dataValue
@@ -42,6 +57,20 @@ var groupBy = function(xs, key) {
     }, {});
   };
 
+// == Utility functions ==
+export function isSubrange(range, subrange) {
+    return subrange[0] >= range.startIndex && subrange[1] <= range.endIndex;
+}
+
+export function isSubrangeStrict(range, subRange) {
+    return subRange[0] > range.startIndex && subRange[1] < range.endIndex;
+}
+
+export function isWithin(range, index) {
+    return index >= range.startIndex && index <= range.endIndex;
+}
+
+// == Predicate functions ==
 /**
  * @param {SimulationStep} step
  * @returns {bool}
@@ -90,18 +119,7 @@ export function isReturnStep(step) {
     return step.action == "return";
 }
 
-export function isSubrange(range, subrange) {
-    return subrange[0] >= range.startIndex && subrange[1] <= range.endIndex;
-}
-
-export function isSubrangeStrict(range, subRange) {
-    return subRange[0] > range.startIndex && subRange[1] < range.endIndex;
-}
-
-export function isWithin(range, index) {
-    return index >= range.startIndex && index <= range.endIndex;
-}
-
+// == Stepping functions ==
 /**
  * getFirstStep returns first breakable step in step sequence (nullable)
  * @param {function(SimulationStep)} isBreakStep
@@ -134,6 +152,41 @@ export function getPreviousStep(isBreakStep, steps, currentIndex) {
     return (offset !== -1) ? offset : undefined;
 }
 
+// == Formatting function ==
+/**
+ * getFormattedName formats step as c identifier
+ * @param {SimulationDeclStep} step 
+ */
+export function getFormattedName(step) {
+    return step.identifier;
+}
+
+/**
+ * getFormattedType formats step type as c type
+ * @param {SimulationEvalStep} step 
+ */
+export function getFormattedType(step) {
+    return step.dataType;
+}
+
+/**
+ * getFormattedStringValue formats step value as equivalent c code 
+ * @param {SimulationEvalStep} step 
+ */
+export function getFormattedStringValue(step) {
+    var { dataType, dataValue } = step;
+   
+    switch(dataType) {
+        case "int":
+            return `${dataValue}`;
+        case "float":
+            return `${dataValue}f`;
+        default:
+            return `${dataValue}`;
+    }
+}
+
+// == State functions ==
 /**
  * getCurrentStatementStep returns steps since and including last statement
  * @param {function(SimulationStep)} isStatement 
@@ -190,21 +243,13 @@ export function getCurrentStatementSteps(steps) {
  * @returns {SourceSegment}
  */
 export function getEvaluatedSegment(expressionStep) {
-    var value;
-    var { dataType, dataValue, node } = expressionStep;
-   
-    switch(dataType) {
-        case "int":
-            value = `${dataValue}`;
-            break;
-        case "float":
-            value = `${dataValue}f`;
-            break;
-        default:
-            value = `${dataValue}`;
-            break;
-    }
-    return { startIndex: node.range[0], endIndex: node.range[1], value };
+    var value = getFormattedStringValue(expressionStep);
+
+    return { 
+        startIndex: expressionStep.node.range[0], 
+        endIndex: expressionStep.node.range[1], 
+        value 
+    };
 }
 
 /**
@@ -446,5 +491,3 @@ export function getCurrentScopeVariables(steps) {
 
     return currentVariables.filter(v => isSubrange(v.scope, currentStatement.node.range));
 }
-
-export default { isStatementStep, isExpressionStep, getFirstStep, getNextStep, getPreviousStep, getEvaluatedCode, getHighlightedCode, getOutput, getVariables: getCurrentVariables }

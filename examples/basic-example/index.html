@@ -74,7 +74,14 @@
 
             // Update variables 
             var headerRow = "<tr><td>Variable</td><td>Type</td><td>Value</td>";
-            var dataRows = simulation.getVariables().map(v => `<tr><td>${v.identifier}</td><td>${v.dataType}</td><td>${v.dataValue}</td></tr>`);
+            var dataRows = simulation
+                .getCurrentScopeVariables()
+                .map(v => ({
+                    name: SimulationFunctions.getFormattedName(v), 
+                    type: SimulationFunctions.getFormattedType(v), 
+                    value: SimulationFunctions.getFormattedStringValue(v)
+                }))
+                .map(v => `<tr><td>${v.name}</td><td>${v.type}</td><td>${v.value}</td></tr>`);
             document.getElementById("variables").innerHTML = `<thead>${headerRow}</thead><tbody>${dataRows}</tbody>`;
         }
 
