@@ -97,6 +97,10 @@ export function getCodePositions(range, code) {
     return { startLine, startColumn, endLine, endColumn };
 }
 
+export function getCodeStartLine(range, code) {
+    return getCodePositions(range, code).startLine;
+}
+
 // == Predicate functions ==
 /**
  * @param {SimulationStep} step
@@ -303,6 +307,30 @@ export function getTransformedRange(originalRange, changes) {
     }
 
     return { startIndex, endIndex };
+}
+
+// == State setup functions == 
+export function attachCodePosition(code, nodes) {
+    for (let node of nodes) {
+        node.position = getCodePositions(node.range, code)
+    }
+}
+
+export function attachStatementRef(steps, nodes) {
+    const statementSteps = steps.filter(isStatementStep);
+    const statementNodes = statementSteps.map(s => s.node).filter(n => n);
+    const uniqueStatementNodes = Array.from(new Set(statementNodes.map(n => n.id))).map(id => statementNodes.find(n => n.id == id));
+    uniqueStatementNodes.sort((n1, n2) => n1.range.startIndex - n2.range.startIndex); 
+
+    if (uniqueStatementNodes.some(s => s.position === undefined))
+        throw new Error("Statement nodes missing position property (use attachCodePosition)");
+
+    for (let step of statementSteps) {
+        const nodeStartLine = step.node.position.startLine;
+        const statmentNodesOnLine = uniqueStatementNodes.filter(n => n.position.startLine == nodeStartLine);
+        const statementNodeIndex = statmentNodesOnLine.findIndex(n => n.id == step.node.id) + 1;
+        step.ref = `l${nodeStartLine}:${statementNodeIndex}`;
+    }
 }
 
 // == State functions ==

@@ -4,7 +4,7 @@
  * @property {string} simulatorCode
  * @property {SimulationStep[]} simulatorSteps
  */
-import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode, getCurrentStatementChanges, getCurrentStatementStep } from './wrapper-functions.js'
+import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode, getCurrentStatementChanges, getCurrentStatementStep, attachCodePosition, attachStatementRef } from './wrapper-functions.js'
 
 
 class Simulation {
@@ -39,8 +39,11 @@ class Simulation {
                 }
             });
 
-            module.simulatorSteps.filter(s => s.node).forEach(s => s.snippet = module.simulatorCode.slice(s.node.range[0], s.node.range[1]));
+            module.simulatorSteps.filter(s => s.node).forEach(s => s.snippet = module.simulatorCode.slice(s.node.range.startIndex, s.node.range.endIndex));
             
+            attachCodePosition(module.simulatorCode, module.simulatorNodes);
+            attachStatementRef(module.simulatorSteps, module.simulatorNodes);
+
             // Expose data 
             this.code = module.simulatorCode;
             this.allSteps = module.simulatorSteps;
@@ -77,18 +80,16 @@ class Simulation {
         return getCurrentScopeVariables(this.allSteps.slice(0, this.currentStep + 1))
     }
 
-    getCurrentStatement() {
-        const currentStatementStep = getCurrentStatementStep(this.allSteps.slice(0, this.currentStep + 1))
-        const currentStatement = this.module.simulatorNodes.find(s => s.id == currentStatementStep.statementId);
-        return currentStatement.ref;
-    }
-
     getCurrentStatementChanges() {
         return getCurrentStatementChanges(this.allSteps.slice(0, this.currentStep + 1));
     }
 
     getCurrentStatementRange() {
         return getCurrentStatementStep(this.allSteps.slice(0, this.currentStep + 1)).node.range;
+    }
+
+    getCurrentStatementRef() {
+        return getCurrentStatementStep(this.allSteps.slice(0, this.currentStep + 1)).ref;
     }
 
     /**

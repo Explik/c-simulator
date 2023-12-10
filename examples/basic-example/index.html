@@ -71,15 +71,12 @@
             // Update highlight mask
             var originalStatmentRange = simulation.getCurrentStatementRange();
             var updatedStatementRange = SimulationFunctions.getTransformedRange(originalStatmentRange, codeChanges);
-            console.log(originalStatmentRange);
-            console.log(codeChanges);
-            console.log(updatedStatementRange);
             var { startLine, startColumn, endColumn } = SimulationFunctions.getCodePositions(updatedStatementRange, updatedCode);
             var maskedRange = "\n".repeat(Math.max(0, startLine - 1)) + " ".repeat(Math.max(0, startColumn - 1)) + "█".repeat(Math.max(0, endColumn - startColumn));
             document.getElementById('highlighted-code').innerHTML = maskedRange;
             
             // Update statement reference
-            document.getElementById("statement").innerHTML = escapeHtml(simulation.getCurrentStatement());  
+            document.getElementById("statement").innerHTML = escapeHtml(simulation.getCurrentStatementRef());  
 
             // Update output
             document.getElementById("stdout").innerHTML = escapeHtml(simulation.getOutput());
