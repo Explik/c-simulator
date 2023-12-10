@@ -1,5 +1,6 @@
 var Module = Module || { };
 Module.print = function() { 
+   console.log("Hello world");
    Module.simulatorSteps = Module.simulatorSteps || [];
    Module.simulatorSteps.push({ action: "stdout", value: Array.from(arguments).join("") + "\\n\n"});
 }
@@ -7,12 +8,12 @@ Module.printErr = function() {
    Module.simulatorSteps = Module.simulatorSteps || [];
    Module.simulatorSteps.push({ action: "stderr", value: Array.from(arguments).join("") + "\\n\n"});
 }
-Module.notify = function(reference, dataPointers) {
+Module.notify = function(id, dataPointers) {
     Module.simulatorSteps = Module.simulatorSteps || [];
 
     var i = 0;
     var steps = [];
-    var notifications = Module.simulatorNotifications.filter(n => n.ref == reference); 
+    var notifications = Module.simulatorNotifications.filter(n => n.notifyId == id); 
     for (var notification of notifications) {
         if (["assign", "eval", "decl", "par"].includes(notification.action)) {
             var dataType = notification.dataType;
