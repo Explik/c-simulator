@@ -59,15 +59,42 @@ var groupBy = function(xs, key) {
 
 // == Utility functions ==
 export function isSubrange(range, subrange) {
-    return subrange[0] >= range.startIndex && subrange[1] <= range.endIndex;
+    return subrange.startIndex >= range.startIndex && subrange.endIndex <= range.endIndex;
 }
 
 export function isSubrangeStrict(range, subRange) {
-    return subRange[0] > range.startIndex && subRange[1] < range.endIndex;
+    return subRange.startIndex > range.startIndex && subRange.endIndex < range.endIndex;
 }
 
 export function isWithin(range, index) {
     return index >= range.startIndex && index <= range.endIndex;
+}
+
+export function getCodePositions(range, code) {
+    let currentLine = 1;
+    let currentColumn = 1;
+    let startLine, startColumn, endLine, endColumn;
+
+    for (let i = 0; i < code.length; i++) {
+        if (i === range.startIndex) {
+            startLine = currentLine;
+            startColumn = currentColumn;
+        }
+        if (i === range.endIndex) {
+            // No need to continue once the end of the range is found
+            endLine = currentLine;
+            endColumn = currentColumn;
+            break;
+        }
+
+        if (code[i] === '\n') {
+            currentLine++;
+            currentColumn = 1;
+        } else {
+            currentColumn++;
+        }
+    }
+    return { startLine, startColumn, endLine, endColumn };
 }
 
 // == Predicate functions ==
@@ -180,10 +207,102 @@ export function getFormattedStringValue(step) {
         case "int":
             return `${dataValue}`;
         case "float":
-            return `${dataValue}f`;
+            return Number.isInteger(dataValue) ? dataValue.toFixed(2) + "f" : dataValue.toPrecision(5) + "f";
+        case "double":
+            return Number.isInteger(dataValue) ? dataValue.toFixed(2) : dataValue.toPrecision(5)
         default:
             return `${dataValue}`;
     }
+}
+
+// == Segment functions ==
+/**
+ * getEvaluatedCodeSegment returns evaluated segment of code
+ * @param {SimulationEvalStep} evalStep
+ * @returns {SourceSegment}
+ */
+export function getEvaluatedCodeSegment(evalStep) {
+    var value = getFormattedStringValue(evalStep);
+
+    return { 
+        startIndex: evalStep.node.range.startIndex, 
+        endIndex: evalStep.node.range.endIndex, 
+        value 
+    };
+}
+
+/**
+ * getNonOverlappingSegments returns an ordered list of non-overlapping segments 
+ * @param {SourceSegment []} codeSegments 
+ * 
+ */
+export function getNonOverlappingSegments(codeSegments) {
+    const orderedCodeSegments = [...codeSegments];
+    orderedCodeSegments.sort((s1, s2) => s2.startIndex - s1.startIndex);
+    
+    let buffer = [];
+    for (let codeSegment of orderedCodeSegments) {
+        // Remove any elements in buffer that 
+        buffer = buffer.filter(c => !isSubrange(codeSegment, c));
+        buffer.push(codeSegment);
+    }
+    buffer.sort((s1, s2) => s1.startIndex - s2.startIndex);
+    return buffer;
+}
+
+/**
+ * getTransformedCode returns code with replaced code segments
+ * @param {string} code 
+ * @param {SourceSegment[]} codeSegments - non-overlapping code segments
+ */
+export function getTransformedCode(code, codeSegments) {
+    if (codeSegments.length === 0)
+        return code;
+    
+    const buffer = [];
+    for(let i = 0; i < codeSegments.length; i++) {
+        const segment = codeSegments[i];
+        const nextSegment = (i < codeSegments.length - 1) ? codeSegments[i + 1] : undefined;
+
+        if (i == 0) 
+            buffer.push(code.slice(0, segment.startIndex));
+        
+        buffer.push(segment.value);
+        
+        if (nextSegment)
+            buffer.push(code.slice(segment.endIndex, nextSegment.startIndex));
+        else
+            buffer.push(code.slice(segment.endIndex));
+    }
+    return buffer.join("");
+}
+
+export function getTransformedRange(originalRange, changes) {
+    let { startIndex, endIndex } = originalRange;
+
+    // Sort changes by starting index
+    changes.sort((a, b) => a.startIndex - b.startIndex);
+
+    for (const change of changes) {
+        const changeLength = change.endIndex - change.startIndex;
+        const insertLength = change.value.length;
+        const lengthDifference = insertLength - changeLength;
+
+        // Shift the entire range if the change is before it
+        if (change.endIndex <= startIndex) {
+            startIndex += lengthDifference;
+            endIndex += lengthDifference;
+        } 
+        // Adjust the range if the change overlaps with it
+        else if (change.startIndex < endIndex) {
+            if (change.startIndex < startIndex) {
+                startIndex += lengthDifference;
+            }
+            endIndex += lengthDifference;
+        }
+    }
+
+    return { startIndex, endIndex };
 }
 
 // == State functions ==
@@ -238,18 +357,14 @@ export function getCurrentStatementSteps(steps) {
 }
 
 /**
- * getEvaluatedSegment returns evaluated segment of code
- * @param {SimulationStep} expressionStep
- * @returns {SourceSegment}
+ * 
+ * @param {SimulationStep[]} steps 
+ * @returns {SourceSegment[]}
  */
-export function getEvaluatedSegment(expressionStep) {
-    var value = getFormattedStringValue(expressionStep);
-
-    return { 
-        startIndex: expressionStep.node.range[0], 
-        endIndex: expressionStep.node.range[1], 
-        value 
-    };
+export function getCurrentStatementChanges(steps) {
+    const statementSteps = getCurrentStatementSteps(steps);
+    const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedCodeSegment);
+    return getNonOverlappingSegments(evaluatedSegments);
 }
 
 /**
@@ -263,50 +378,7 @@ export function maskSegment(step) {
     return { startIndex, endIndex, value: newValue };
 }
 
-/**
- * getNonOverlappingSegments returns an ordered list of non-overlapping segments 
- * @param {SourceSegment []} codeSegments 
- * 
- */
-export function getNonOverlappingSegments(codeSegments) {
-    const orderedCodeSegments = [...codeSegments];
-    orderedCodeSegments.sort((s1, s2) => s2.startIndex - s1.startIndex);
-    
-    let buffer = [];
-    for (let codeSegment of codeSegments) {
-        // Remove any elements in buffer that 
-        buffer = buffer.filter(c => !isSubrange(codeSegment, c));
-        buffer.push(codeSegment);
-    }
-    return buffer;
-}
 
-/**
- * replaceSegments returns code with replaced code segments
- * @param {string} code 
- * @param {SourceSegment[]} codeSegments - non-overlapping code segments
- */
-export function replaceSegments(code, codeSegments) {
-    if (codeSegments.length === 0)
-        return code;
-    
-    const buffer = [];
-    for(let i = 0; i < codeSegments.length; i++) {
-        const segment = codeSegments[i];
-        const nextSegment = (i < codeSegments.length - 1) ? codeSegments[i + 1] : undefined;
-
-        if (i == 0) 
-            buffer.push(code.slice(0, segment.startIndex));
-        
-        buffer.push(segment.value);
-        
-        if (nextSegment)
-            buffer.push(code.slice(segment.endIndex, nextSegment.startIndex));
-        else
-            buffer.push(code.slice(segment.endIndex));
-    }
-    return buffer.join("");
-}
 
 /**
  * getCurrentEvaluatedCode returns code with replaced evaluation steps
@@ -316,9 +388,9 @@ export function replaceSegments(code, codeSegments) {
  */
 export function getCurrentEvaluatedCode(code, steps) {
     const statementSteps = getCurrentStatementSteps(steps);
-    const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedSegment);
+    const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedCodeSegment);
     const nonOverlappingSegments = getNonOverlappingSegments(evaluatedSegments);
-    return replaceSegments(code, nonOverlappingSegments);
+    return getTransformedCode(code, nonOverlappingSegments);
 }
 
 /**
@@ -341,23 +413,6 @@ export function getEvaluatedCode(code, steps) {
     );
 
     return activeExpressionSteps.length ? getEvaluatedCodeInternal(code, activeExpressionSteps) : code;
-}
-
-function getLegacyLocation(code, range) {
-    if (typeof code !== "string")
-        throw Error("code is not of type string");
-    if (!Array.isArray(range))
-        throw Error("range is not of type Array");
-
-    var startLines = code.slice(0, range[0]).split("\n");
-    var endLines = code.slice(0, range[1]).split("\n");
-
-    return [
-        startLines.length,
-        startLines[startLines.length - 1].length,
-        endLines.length,
-        endLines[endLines.length - 1].length
-    ];
 }
 
 // Calculates evaluated code from a list of ordered non-overlapping steps
@@ -416,34 +471,6 @@ function getContentAfterLocation(code, location) {
         ].join("\n");
     }
     return lines[location[2] - 1].substring(location[3])
-}
-
-export function getHighlightedCode(code, steps) {
-    steps.filter(s => s.node).forEach(s => s.location = getLegacyLocation(code, s.node.range));
-
-    const lastStatement = getCurrentStatementStep(steps);
-    if (lastStatement === undefined) return ''; 
-    
-    const location = lastStatement.location;
-    const evaluatedCode = getEvaluatedCode(code, steps);
-    const lines = evaluatedCode.split('\n');
-    delete lastStatement.location;
-    
-    const create = (n, v) => Array.from({length: n}, () => v).join(''); 
-    const createLines = (n) => Array.from({length: n}, () => '');
-
-    if (location[0] === location[2]) {
-        const numberOfPrecedingLines = Math.max(0, location[0] - 1);
-        const numberOfSucceedingLines = Math.max(0, lines.length - location[2]);
-        const numberOfSquares = lines[location[2] - 1].length;
-
-        return [
-            ...createLines(numberOfPrecedingLines),
-            create(numberOfSquares, '█'), 
-            ...createLines(numberOfSucceedingLines),
-        ].join("\n"); 
-    }
-    else throw new Error("Multi-line highlight is not supported");    
 }
 
 /**

@@ -105,16 +105,14 @@ class NodeData:
         self.parent_id = node.parent and node.parent.id
         self.type = SourceNodeResolver.get_type(node)
         self.range = node.get_range()
-        self.reference = f"{self.range.get_location()[0]}:x"
+        self.reference = "x:x" #f"{self.range.get_location()[0]}:x"
 
     def serialize(self, code):
-        (startIndex, endIndex) = self.range.get_indicies(code)
-
         buffer = dict()
         buffer["id"] = self.id
         buffer["parentId"] = self.parent_id or "undefined"
         buffer["type"] = "\"" + self.type + "\""
-        buffer["range"] = f"[{startIndex}, {endIndex}]"
+        buffer["range"] = self.range.serialize(code)
         buffer["ref"] = "\"" + self.reference + "\""
         return self.serialize_dict(buffer)
 
@@ -184,7 +182,7 @@ class CompositeTreeVisitor(SourceTreeVisitor):
 class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         node_type = SourceNodeResolver.get_type(source_node)
-        return node_type in ["IntegerLiteral", "StringLiteral"]
+        return node_type in ["IntegerLiteral", "StringLiteral", "FloatingLiteral"]
     
     def visit(self, target_node: SourceNode):
         buffer = ExprNotifyReplaceNode(target_node)

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { getEvaluatedCode, getFirstStep, getCurrentVariables, getHighlightedCode, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedSegment, getNonOverlappingSegments, replaceSegments } from './wrapper-functions.js';
+import { getEvaluatedCode, getFirstStep, getCurrentVariables, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedCodeSegment, getNonOverlappingSegments, getTransformedCode, getFormattedStringValue, getTransformedRange} from './wrapper-functions.js';
 
 describe("getFirstStep", function() {
   it ('returns undefined when no step matches', function() {
@@ -233,16 +233,14 @@ describe("getEvaluatedCode", function() {
       assert.deepEqual(actual, statementSteps);
     });
   });
-  describe("getEvaluatedSegment", function() {
+  describe("getFormattedStringValue", function() {
     it ("returns 1234 for int resulting value", function() {
       const expressionStep = { startIndex: 2, endIndex: 3, dataType: "int", dataValue: 1234.0};
-      const expected = { startIndex: 2, endIndex: 3, value: "1234" };
-      assert.deepEqual(getEvaluatedSegment(expressionStep), expected);
+      assert.deepEqual(getFormattedStringValue(expressionStep), "1234");
     });
-    it ("returns 2345f for float resulting value", function() {
+    it ("returns 2345.00f for whole-number float resulting value", function() {
       const expressionStep = { startIndex: 2, endIndex: 3, dataType: "float", dataValue: 2345.0};
-      const expected = { startIndex: 2, endIndex: 3, value: "2345f" };
-      assert.deepEqual(getEvaluatedSegment(expressionStep), expected);
+      assert.deepEqual(getFormattedStringValue(expressionStep), "2345.00f");
     });
   });
   describe("getNonOverlappingSegments", function() {
@@ -272,28 +270,28 @@ describe("getEvaluatedCode", function() {
       assert.deepEqual(getNonOverlappingSegments(codeSegments), codeSegments);
     });
   });
-  describe("replaceSegments", function() {
+  describe("getTransformedCode", function() {
     it ("does nothing on no segments", function() {
       const code = "int main() {}";
-      assert.equal(replaceSegments(code, []), code);
+      assert.equal(getTransformedCode(code, []), code);
     });
     it("replaces one segment in beginning correct", function() {
       const code = "int main() {}";
       const segments = [ { startIndex: 0, endIndex: 3, value: "double" } ];
       const expected = "double main() {}";
-      assert.equal(replaceSegments(code, segments), expected);
+      assert.equal(getTransformedCode(code, segments), expected);
     });
     it("replaces one segment in middle correct", function() {
       const code = "int main() {}";
       const segments = [ { startIndex: 4, endIndex: 8, value: "main_2" } ];
       const expected = "int main_2() {}";
-      assert.equal(replaceSegments(code, segments), expected);
+      assert.equal(getTransformedCode(code, segments), expected);
     });
     it("replaces one segment at end correct", function() {
       const code = "int main() {}";
       const segments = [ { startIndex: 11, endIndex: 13, value: "{ exit(); }" } ];
       const expected = "int main() { exit(); }";
-      assert.equal(replaceSegments(code, segments), expected);
+      assert.equal(getTransformedCode(code, segments), expected);
     });
     it("replaces one segment in middle correct", function() {
       const code = "int main() {}";
@@ -302,183 +300,33 @@ describe("getEvaluatedCode", function() {
         { startIndex: 11, endIndex: 13, value: "{ exit(); }" } 
       ];
       const expected = "double main() { exit(); }";
-      assert.equal(replaceSegments(code, segments), expected);
+      assert.equal(getTransformedCode(code, segments), expected);
     });
   });
-});
+  describe("getTransformedRange", function() {
+    it('shifts range right with text insertion before range', () => {
+      const originalRange = { startIndex: 10, endIndex: 15 };
+      const changes = [{ startIndex: 5, endIndex: 5, value: "Hello" }];
+      assert.deepEqual(getTransformedRange(originalRange, changes), { startIndex: 15, endIndex: 20 });
+    });
 
+    it('shifts range left with text deletion before range', () => {
+      const originalRange = { startIndex: 10, endIndex: 15 };
+      const changes = [{ startIndex: 2, endIndex: 7, value: "" }];
+      assert.deepEqual(getTransformedRange(originalRange, changes), { startIndex: 5, endIndex: 10 });
+    });
 
-describe('getEvaluatedCode', function () {
-  it('replaces expression at beginning', function () {
-    const code = "5 * 7 + 6;";
-    const steps = [{
-      action: 'eval',
-      dataType: "int",
-      dataValue: 35,
-      location: [1, 1, 1, 5]
-    }];
+    it('expands range with text insertion within range', () => {
+      const originalRange = { startIndex: 5, endIndex: 10 };
+      const changes = [{ startIndex: 7, endIndex: 7, value: "World" }];
+      assert.deepEqual(getTransformedRange(originalRange, changes), { startIndex: 5, endIndex: 15 });
+    });
 
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "35 + 6;";
-    assert.equal(actual, expected);
-  });
-  it('replaces expression in middle', function () {
-    const code = "f(5 * 7);";
-    const steps = [{
-      action: 'eval',
-      dataType: "int",
-      dataValue: 35,
-      location: [1, 3, 1, 7]
-    }];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "f(35);";
-    assert.equal(actual, expected);
-  });
-  it('replaces expression in middle (multi-line)', function () {
-    const code = "int main() {\n  return 5 * 7 + 6;\n}";
-    const steps = [{
-      action: 'eval',
-      dataType: "int",
-      dataValue: 35,
-      location: [2, 10, 2, 14]
-    }];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "int main() {\n  return 35 + 6;\n}";
-    assert.equal(actual, expected);
-  });
-  it('replaces expression at end', function () {
-    const code = "6 + 5 * 7;";
-    const steps = [{
-      action: 'eval',
-      dataType: "int",
-      dataValue: 35,
-      location: [1, 5, 1, 9]
-    }];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "6 + 35;";
-    assert.equal(actual, expected);
-  });
-  it('replaces non-overlapping expressions', function () {
-    const code = "5 * 7 + 6 * 3;";
-    const steps = [
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 35,
-        location: [1, 1, 1, 5]
-      }, {
-        action: 'eval',
-        dataType: 'int',
-        dataValue: 18,
-        location: [1, 9, 1, 13]
-      }
-    ];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "35 + 18;";
-    assert.equal(actual, expected);
-  });
-  it('replaces non-overlapping expressions on different lines', function () {
-    const code = "int main() {\n  int i = 3 * 3;\n  return i;\n}";
-    const steps = [
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 9,
-        location: [2, 11, 2, 15]
-      }, {
-        action: 'eval',
-        dataType: 'int',
-        dataValue: 9,
-        location: [3, 10, 3, 10]
-      }
-    ];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "int main() {\n  int i = 9;\n  return 9;\n}";
-    assert.equal(actual, expected);
-  });
-  it('replaces non-overlapping expressions on same line', function () {
-    const code = "int main() {\n  return 5 * 7 + 6 * 3;\n}";
-    const steps = [
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 35,
-        location: [2, 10, 2, 14]
-      }, {
-        action: 'eval',
-        dataType: 'int',
-        dataValue: 18,
-        location: [2, 18, 2, 22]
-      }
-    ];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "int main() {\n  return 35 + 18;\n}";
-    assert.equal(actual, expected);
-  });
-  it('replaces overlapped expressions', function () {
-    const code = "5 * 7 + 6;";
-    const steps = [
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 35,
-        location: [1, 1, 1, 5]
-      },
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 41,
-        location: [1, 1, 1, 9]
-      }
-    ];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "41;";
-    assert.equal(actual, expected);
-  });
-  it('replaces expression after statement', function() {
-    const code = "5 * 7; 6 * 3;";
-    const steps = [
-      {
-        action: 'eval',
-        dataType: "int",
-        dataValue: 35,
-        location: [1, 1, 1, 5]
-      },
-      { 
-        action: 'stat' 
-      },
-      {
-        action: 'eval',
-        dataType: 'int',
-        dataValue: 18,
-        location: [1, 8, 1, 12]
-      }
-    ];
-
-    const actual = getEvaluatedCode(code, steps);
-    const expected = "5 * 7; 18;";
-    assert.equal(actual, expected);
-  });
-});
-
-describe('getHighlightedCode', function () {
-  it('highlights expression in middle (multi-line)', function () {
-    const code = "int main() {\n  return 5 * 7 + 6;\n}";
-    const steps = [{
-      action: 'stat',
-      location: [2, 3, 2, 14]
-    }];
-
-    const actual = getHighlightedCode(code, steps);
-    const expected = "\n███████████████████\n";
-    assert.equal(actual, expected);
+    it('contracts range with text deletion within range', () => {
+      const originalRange = { startIndex: 5, endIndex: 10 };
+      const changes = [{ startIndex: 7, endIndex: 9, value: "" }];
+      assert.deepEqual(getTransformedRange(originalRange, changes), { startIndex: 5, endIndex: 8 });
+    });
   });
 });
 
@@ -494,7 +342,8 @@ describe('getVariables', function() {
     const expected = [{
       identifier: 'i',
       dataType: 'int',
-      dataValue: 7
+      dataValue: 7,
+      scope: undefined
     }]
     assert.deepEqual(actual, expected);
   });
@@ -518,12 +367,14 @@ describe('getVariables', function() {
       {
         identifier: 'i',
         dataType: 'int',
-        dataValue: 7
+        dataValue: 7,
+        scope: undefined
       },
       {
         identifier: 'j',
         dataType: 'int',
-        dataValue: 8
+        dataValue: 8,
+        scope: undefined
       }
     ];
 
@@ -548,7 +399,8 @@ describe('getVariables', function() {
     const expected = [{
       identifier: 'i',
       dataType: 'int',
-      dataValue: 8
+      dataValue: 8,
+      scope: undefined
     }];
 
     assert.deepEqual(actual, expected);
@@ -578,7 +430,8 @@ describe('getVariables', function() {
     const expected = [{
       identifier: 'i',
       dataType: 'int',
-      dataValue: 9
+      dataValue: 9,
+      scope: undefined
     }];
 
     assert.deepEqual(actual, expected);
@@ -602,7 +455,8 @@ describe('getVariables', function() {
     const expected = [{
       identifier: 'i',
       dataType: 'double',
-      dataValue: 8
+      dataValue: 8,
+      scope: undefined
     }];
 
     assert.deepEqual(actual, expected);

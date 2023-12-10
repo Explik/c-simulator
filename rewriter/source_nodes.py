@@ -13,35 +13,16 @@ def get_code_indexes(code, extent) -> (int, int):
     return (get_code_index(code, extent.start), get_code_index(code, extent.end))
 
 class SourceRange: 
-    def __init__(self, location: list[int]) -> None:
-        self.location = location
+    def __init__(self, node) -> None:
+        self.node = node
 
-    def get_location(self):
-        return self.location
-
-    def get_indicies(self, code): 
-        l = self.location
-        return [self._get_index(code, l[0], l[1]), self._get_index(code, l[2], l[3])]
-
-    def _get_index(self, code, line, column): 
-        current_l = line
-        current_c = column
-        lines = code.split("\n")
-        prior_lines = lines[0:current_l]
-        if len(prior_lines) > 0:
-            prior_lines[-1] = prior_lines[-1][0:current_c]
-            return len("\n".join(prior_lines))
-        else: 
-            return current_c
-
+    def serialize(self, code): 
+        (startIndex, endIndex) = get_code_indexes(code, self.node.node.extent)
+        return "{\"startIndex\": " + f"{startIndex}" + ", \"endIndex\": " + f"{endIndex}" + "}"
+    
     @staticmethod
     def create(node: 'SourceNode') -> 'SourceRange':
-        return SourceRange([
-            node.node.extent.start.line, 
-            node.node.extent.start.column - 1,
-            node.node.extent.end.line,
-            node.node.extent.end.column - 1
-        ])
+        return SourceRange(node)
 
 class SourceToken: 
     def __init__(self) -> None:

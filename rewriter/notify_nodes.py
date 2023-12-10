@@ -42,24 +42,10 @@ class BaseNotify():
             buffer["dataType"] = f"\"{self.type}\""
         
         if (self.action in ["decl", "par"]):
-            buffer["scope"] = self.serialize_range(self.scope, code)
+            buffer["scope"] = self.scope.serialize(code)
 
         if (self.action in ["assign", "decl", "invocation", "par"]):
             buffer["identifier"] = f"\"{self.identifier}\""
-
-        return self.serialize_dict(buffer)
-    
-    def serialize_range(self, range, code): 
-        (startLine, startColumn, endLine, endColumn) = range.get_location()
-        (startIndex, endIndex) = range.get_indicies(code)
-
-        buffer = dict()
-        buffer["startLine"] = startLine
-        buffer["startColumn"] = startColumn
-        buffer["endLine"] = endLine
-        buffer["endColumn"] = endColumn
-        buffer["startIndex"] = startIndex
-        buffer["endIndex"] = endIndex
 
         return self.serialize_dict(buffer)
 

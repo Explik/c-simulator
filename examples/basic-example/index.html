@@ -54,17 +54,29 @@
             simulation.stepForward();
             updateCode();
         }
+
         function stepBackward() {
             simulation.stepBackward();
             updateCode();
         }
+
         function updateCode() {
             // Update code sample
-            document.getElementById("evaluated-code").innerHTML = escapeHtml(simulation.getEvaluatedCode());
+            var code = simulation.getCode();
+            var codeChanges = simulation.getCurrentStatementChanges();
+            var updatedCode = SimulationFunctions.getTransformedCode(code, codeChanges);
+            document.getElementById("evaluated-code").innerHTML = escapeHtml(updatedCode);
             hljs.highlightAll();
 
             // Update highlight mask
-            document.getElementById('highlighted-code').innerHTML = simulation.getHighlightedCode();
+            var originalStatmentRange = simulation.getCurrentStatementRange();
+            var updatedStatementRange = SimulationFunctions.getTransformedRange(originalStatmentRange, codeChanges);
+            console.log(originalStatmentRange);
+            console.log(codeChanges);
+            console.log(updatedStatementRange);
+            var { startLine, startColumn, endColumn } = SimulationFunctions.getCodePositions(updatedStatementRange, updatedCode);
+            var maskedRange = "\n".repeat(Math.max(0, startLine - 1)) + " ".repeat(Math.max(0, startColumn - 1)) + "█".repeat(Math.max(0, endColumn - startColumn));
+            document.getElementById('highlighted-code').innerHTML = maskedRange;
             
             // Update statement reference
             document.getElementById("statement").innerHTML = escapeHtml(simulation.getCurrentStatement());  
