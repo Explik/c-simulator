@@ -105,7 +105,7 @@ class NodeData:
         self.parent_id = node.parent and node.parent.id
         self.type = SourceNodeResolver.get_type(node)
         self.range = node.get_range()
-        self.reference = "x:x" #f"{self.range.get_location()[0]}:x"
+        self.is_statement = node.is_statement()
 
     def serialize(self, code):
         buffer = dict()
@@ -113,7 +113,7 @@ class NodeData:
         buffer["parentId"] = self.parent_id or "undefined"
         buffer["type"] = "\"" + self.type + "\""
         buffer["range"] = self.range.serialize(code)
-        buffer["ref"] = "\"" + self.reference + "\""
+        buffer["isStatement"] = "true" if self.is_statement else "false"
         return self.serialize_dict(buffer)
 
     def serialize_dict(self, dict): 

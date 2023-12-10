@@ -68,7 +68,7 @@ class SourceNode:
         if parent_type in ["CaseStmt", "DefaultStmt"] and parent_children[0] != self:
             return True
 
-        return parent_type in ["ForStmt", "IfStmt", "WhileStmt"] and parent_children[-1] == self
+        return parent_type in ["ForStmt", "IfStmt", "WhileStmt"]
 
     def __eq__(self, node: object) -> bool:
         if not(isinstance(node, SourceNode)): 
