@@ -170,8 +170,12 @@ class CompositeTreeVisitor(SourceTreeVisitor):
 
     def register_function_notify(self, data: BaseNotify|list[BaseNotify]) -> BaseNotify|list[BaseNotify]: 
         data_list = data if isinstance(data, list) else [data]
-        self.function_notifies.extend(data_list)
-        self.notifies.extend(data_list)
+
+        for data_element in data_list: 
+            data_element.reference = f"{len(self.notifies)}"
+            self.function_notifies.append(data_element)
+            self.notifies.append(data_element)
+
         return data
 
     def deregister_function_notify(self): 
@@ -327,7 +331,7 @@ class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
         return SourceNodeResolver.get_type(source_node) == "VarDecl" and any(c for c in source_node.get_children() if SourceNodeResolver.get_type(c) != "TypeRef")
 
     def visit(self, source_node: SourceNode):
-        stat_notify = self.register(StatNotifyData(source_node))
+        stat_notify = self.register(StatNotifyData(source_node.parent))
         decl_notify = self.register(DeclNotifyData(source_node))
         return self.callback(source_node.get_children()[0]).with_start_notify(stat_notify).with_end_notify(decl_notify)
 
@@ -339,7 +343,7 @@ class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         notify_list = self.register([
             StatNotifyData(source_node),
-            DeclNotifyData(source_node)
+            DeclNotifyData(source_node.parent)
         ])
         return PreExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
 

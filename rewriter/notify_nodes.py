@@ -23,17 +23,11 @@ class BaseNotify():
     def get_identifiers(self) -> list[str]: 
         return []
 
-    def get_reference(self): 
-        return self.reference
-
-    def set_reference(self, reference: str): 
-        self.reference = reference
-
     def serialize(self, code):
         buffer = dict()
         buffer["ref"] = f"{self.reference}"
-        buffer["nodeId"] = int(f"{self.reference}"[1:])
         buffer["action"] = f"\"{self.action}\""
+        buffer["nodeId"] = f"{self.node.id}" if self.node is not None else "undefined"
 
         if self.action in ["stat"]: 
             buffer["statementId"] = f"{self.statement_id}"
@@ -134,8 +128,6 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         return node == self.target
     
     def apply(self, node: SourceNode, before_node: InsertModificationNode|None = None,  middle_node: InsertModificationNode|None = None, end_node: InsertModificationNode|None = None): 
-        self.update_notify(node)
-        
         # Generate statement expression
         placeholders = []
         start_identifiers = flatten([n.get_identifiers() for n in self.start_notifies])
@@ -145,7 +137,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
             placeholders.append(before_node)
 
         if any(self.start_notifies): 
-            start_reference = self.start_notifies[0].get_reference()
+            start_reference = self.start_notifies[0].reference
             list_1 = [f"&{i}" for i in start_identifiers]
             list_2 = [f"{start_reference}"] + list_1
             placeholders.append(ConstantNode(f"notify_{len(start_identifiers)}({', '.join(list_2)})"))
@@ -154,7 +146,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
             placeholders.append(middle_node)
         
         if any(self.end_notifies):
-            end_reference = self.end_notifies[0].get_reference()
+            end_reference = self.end_notifies[0].reference
             list_1 = [f"&{i}" for i in end_identifiers]
             list_2 = [f"{end_reference}"] + list_1
             placeholders.append(ConstantNode(f"notify_{len(end_identifiers)}({', '.join(list_2)})"))
@@ -166,16 +158,6 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
             return comma_node_with_parentheses(*placeholders).apply() 
         else: 
             return placeholders[0].apply()
-        
-    def update_notify(self, node: SourceNode):
-        # Update notify data 
-        start_reference = f"{1000 + node.id}"
-        for notify in self.start_notifies:
-            notify.set_reference(start_reference)
-
-        end_reference = f"{2000 + node.id}"
-        for notify in self.end_notifies:
-            notify.set_reference(end_reference)
 
     def clone(self): 
         return copy(self)
