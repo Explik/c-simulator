@@ -8,7 +8,12 @@ def flatten(l):
 
 # Notify data
 class BaseNotify():
+    counter = 0
+
     def __init__(self, node: SourceNode) -> None:
+        BaseNotify.counter += 1
+        self.id = BaseNotify.counter
+
         self.node = node
         
         self.action: str|None = None
@@ -25,6 +30,7 @@ class BaseNotify():
 
     def serialize(self, code):
         buffer = dict()
+        buffer["id"] = f"{self.id}"
         buffer["ref"] = f"{self.reference}"
         buffer["action"] = f"\"{self.action}\""
         buffer["nodeId"] = f"{self.node.id}" if self.node is not None else "undefined"

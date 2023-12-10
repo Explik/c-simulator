@@ -149,6 +149,7 @@ class PartialTreeVisitor():
 class CompositeTreeVisitor(SourceTreeVisitor):
     def __init__(self, partial_visitors: list[PartialTreeVisitor]) -> None:
         super().__init__() 
+        self.notify_reference = 0
         self.notifies = []
         self.function_notifies = []
         self.partial_visitors = partial_visitors
@@ -172,9 +173,11 @@ class CompositeTreeVisitor(SourceTreeVisitor):
         data_list = data if isinstance(data, list) else [data]
 
         for data_element in data_list: 
-            data_element.reference = f"{len(self.notifies)}"
-            self.function_notifies.append(data_element)
-            self.notifies.append(data_element)
+            data_element.reference = f"{self.notify_reference}"
+        
+        self.function_notifies.extend(data_list)
+        self.notifies.extend(data_list)
+        self.notify_reference = self.notify_reference + 1
 
         return data
 
