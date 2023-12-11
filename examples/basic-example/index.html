@@ -92,6 +92,9 @@
                 }))
                 .map(v => `<tr><td>${v.name}</td><td>${v.type}</td><td>${v.value}</td></tr>`);
             document.getElementById("variables").innerHTML = `<thead>${headerRow}</thead><tbody>${dataRows}</tbody>`;
+        
+            var callTree = simulation.getCurrentCallTree();
+            console.log(callTree);
         }
 
         function escapeHtml(unsafe)
