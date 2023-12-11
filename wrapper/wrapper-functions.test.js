@@ -1,8 +1,8 @@
 import assert from 'assert';
-import { getEvaluatedCode, getFirstStep, getCurrentVariables, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedCodeSegment, getNonOverlappingSegments, getTransformedCode, getFormattedStringValue, getTransformedRange} from './wrapper-functions.js';
+import { getEvaluatedCode, getFirstStep, getCurrentVariables, getNextStep, getPreviousStep, getCurrentStatementSteps, getEvaluatedCodeSegment, getNonOverlappingSegments, getTransformedCode, getFormattedStringValue, getTransformedRange, getCurrentCallTree } from './wrapper-functions.js';
 
-describe("getFirstStep", function() {
-  it ('returns undefined when no step matches', function() {
+describe("getFirstStep", function () {
+  it('returns undefined when no step matches', function () {
     const steps = [
       { type: 'a' },
       { type: 'b' },
@@ -11,7 +11,7 @@ describe("getFirstStep", function() {
 
     assert.equal(actual, undefined);
   });
-  it ('returns first when first step matches', function() {
+  it('returns first when first step matches', function () {
     const steps = [
       { type: 'a' },
       { type: 'b' },
@@ -20,16 +20,16 @@ describe("getFirstStep", function() {
 
     assert.equal(actual, 0);
   });
-  it ('returns first when first and second step matches', function() {
+  it('returns first when first and second step matches', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'a' },
     ];
     const actual = getFirstStep(s => s => s.type === 'a', steps);
 
     assert.equal(actual, 0);
   });
-  it ('returns second when second step matches', function() {
+  it('returns second when second step matches', function () {
     const steps = [
       { type: 'a' },
       { type: 'b' },
@@ -40,8 +40,8 @@ describe("getFirstStep", function() {
   });
 });
 
-describe("getNextStep", function() {
-  it ('returns undefined when no steps matches', function() {
+describe("getNextStep", function () {
+  it('returns undefined when no steps matches', function () {
     const steps = [
       { type: 'a' }, // current step
       { type: 'b' },
@@ -54,9 +54,9 @@ describe("getNextStep", function() {
 
     assert.equal(actual, undefined);
   });
-  it ('returns undefined when no comming step matches', function() {
+  it('returns undefined when no comming step matches', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'b' }, // current step
       { type: 'c' },
       { type: 'd' },
@@ -67,9 +67,9 @@ describe("getNextStep", function() {
 
     assert.equal(actual, undefined);
   });
-  it ('returns next step when next step matches', function() {
+  it('returns next step when next step matches', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'b' },
       { type: 'c' }, // current step
       { type: 'd' }, // next step
@@ -80,11 +80,11 @@ describe("getNextStep", function() {
 
     assert.equal(actual, 3);
   });
-  it ('skips one step when next step does not match', function() {
+  it('skips one step when next step does not match', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'b' },
-      { type: 'c' }, 
+      { type: 'c' },
       { type: 'd' }, // current step
       { type: 'e' },
       { type: 'f' }  // next step
@@ -95,8 +95,8 @@ describe("getNextStep", function() {
   });
 });
 
-describe("getPreviousStep", function() {
-  it ('returns undefined when no steps matches', function() {
+describe("getPreviousStep", function () {
+  it('returns undefined when no steps matches', function () {
     const steps = [
       { type: 'a' },
       { type: 'b' },
@@ -109,10 +109,10 @@ describe("getPreviousStep", function() {
 
     assert.equal(actual, undefined);
   });
-  it ('returns undefined when no comming step matches', function() {
+  it('returns undefined when no comming step matches', function () {
     const steps = [
       { type: 'a' },
-      { type: 'b' }, 
+      { type: 'b' },
       { type: 'c' },
       { type: 'd' },
       { type: 'e' }, // current step 
@@ -122,9 +122,9 @@ describe("getPreviousStep", function() {
 
     assert.equal(actual, undefined);
   });
-  it ('returns next step when next step matches', function() {
+  it('returns next step when next step matches', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'b' },
       { type: 'c' }, // previous step
       { type: 'd' }, // current step
@@ -135,11 +135,11 @@ describe("getPreviousStep", function() {
 
     assert.equal(actual, 2);
   });
-  it ('skips one step when next step does not match', function() {
+  it('skips one step when next step does not match', function () {
     const steps = [
-      { type: 'a' }, 
+      { type: 'a' },
       { type: 'b' }, // previous step
-      { type: 'c' }, 
+      { type: 'c' },
       { type: 'd' }, // current step
       { type: 'e' },
       { type: 'f' }
@@ -150,9 +150,9 @@ describe("getPreviousStep", function() {
   });
 });
 
-describe("getEvaluatedCode", function() {
-  describe("getCurrentStatementSteps", function() {
-    it ('returns all steps when no step matches', function() {
+describe("getEvaluatedCode", function () {
+  describe("getCurrentStatementSteps", function () {
+    it('returns all steps when no step matches', function () {
       const steps = [
         { action: "eval" },
         { action: "eval" },
@@ -161,10 +161,10 @@ describe("getEvaluatedCode", function() {
         { action: "eval" },
       ];
       const actual = getCurrentStatementSteps(steps);
-  
+
       assert.deepEqual(actual, steps);
     });
-    it ('returns latter half of steps when one step matches', function() {
+    it('returns latter half of steps when one step matches', function () {
       const steps = [
         { action: "eval" },
         { action: "eval" },
@@ -178,10 +178,10 @@ describe("getEvaluatedCode", function() {
         { action: "eval" },
       ];
       const actual = getCurrentStatementSteps(steps);
-  
+
       assert.deepEqual(actual, statementSteps);
     });
-    it ('returns latter half of steps when one step matches', function() {
+    it('returns latter half of steps when one step matches', function () {
       const steps = [
         { action: "eval" },
         { action: "eval" },
@@ -194,10 +194,10 @@ describe("getEvaluatedCode", function() {
         { action: "eval" },
       ];
       const actual = getCurrentStatementSteps(steps);
-  
+
       assert.deepEqual(actual, statementSteps);
     });
-    it ('returns all steps after statement if no return', function() {
+    it('returns all steps after statement if no return', function () {
       const steps = [
         { action: "stat" },
         { action: "invocation" },
@@ -211,10 +211,10 @@ describe("getEvaluatedCode", function() {
         { action: "eval" },
       ];
       const actual = getCurrentStatementSteps(steps);
-  
+
       assert.deepEqual(actual, statementSteps);
     });
-    it ('returns all steps prior to invoke with return', function() {
+    it('returns all steps prior to invoke with return', function () {
       const steps = [
         { action: "stat" }, // statement step 
         { action: "invocation" },
@@ -229,40 +229,40 @@ describe("getEvaluatedCode", function() {
         { action: "eval" },
       ];
       const actual = getCurrentStatementSteps(steps);
-  
+
       assert.deepEqual(actual, statementSteps);
     });
   });
-  describe("getFormattedStringValue", function() {
-    it ("returns 1234 for int resulting value", function() {
-      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "int", dataValue: 1234.0};
+  describe("getFormattedStringValue", function () {
+    it("returns 1234 for int resulting value", function () {
+      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "int", dataValue: 1234.0 };
       assert.deepEqual(getFormattedStringValue(expressionStep), "1234");
     });
-    it ("returns 2345.00f for whole-number float resulting value", function() {
-      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "float", dataValue: 2345.0};
+    it("returns 2345.00f for whole-number float resulting value", function () {
+      const expressionStep = { startIndex: 2, endIndex: 3, dataType: "float", dataValue: 2345.0 };
       assert.deepEqual(getFormattedStringValue(expressionStep), "2345.00f");
     });
   });
-  describe("getNonOverlappingSegments", function() {
-    it ("returns last element if elements fully overlaps", function() {
+  describe("getNonOverlappingSegments", function () {
+    it("returns last element if elements fully overlaps", function () {
       const codeSegments = [
         { startIndex: 2, endIndex: 3, value: "a" },
         { startIndex: 2, endIndex: 3, value: "1" }
       ];
-      const expected = [ codeSegments[1] ];
+      const expected = [codeSegments[1]];
       assert.deepEqual(getNonOverlappingSegments(codeSegments), expected);
     });
 
-    it ("returns last element if elements fully overlaps", function() {
+    it("returns last element if elements fully overlaps", function () {
       const codeSegments = [
         { startIndex: 2, endIndex: 3, value: "a" },
         { startIndex: 2, endIndex: 4, value: "1" }
       ];
-      const expected = [ codeSegments[1] ];
+      const expected = [codeSegments[1]];
       assert.deepEqual(getNonOverlappingSegments(codeSegments), expected);
     });
 
-    it ("returns both elements if elements do not overlap", function() {
+    it("returns both elements if elements do not overlap", function () {
       const codeSegments = [
         { startIndex: 1, endIndex: 2, value: "a" },
         { startIndex: 3, endIndex: 4, value: "b" }
@@ -270,40 +270,40 @@ describe("getEvaluatedCode", function() {
       assert.deepEqual(getNonOverlappingSegments(codeSegments), codeSegments);
     });
   });
-  describe("getTransformedCode", function() {
-    it ("does nothing on no segments", function() {
+  describe("getTransformedCode", function () {
+    it("does nothing on no segments", function () {
       const code = "int main() {}";
       assert.equal(getTransformedCode(code, []), code);
     });
-    it("replaces one segment in beginning correct", function() {
+    it("replaces one segment in beginning correct", function () {
       const code = "int main() {}";
-      const segments = [ { startIndex: 0, endIndex: 3, value: "double" } ];
+      const segments = [{ startIndex: 0, endIndex: 3, value: "double" }];
       const expected = "double main() {}";
       assert.equal(getTransformedCode(code, segments), expected);
     });
-    it("replaces one segment in middle correct", function() {
+    it("replaces one segment in middle correct", function () {
       const code = "int main() {}";
-      const segments = [ { startIndex: 4, endIndex: 8, value: "main_2" } ];
+      const segments = [{ startIndex: 4, endIndex: 8, value: "main_2" }];
       const expected = "int main_2() {}";
       assert.equal(getTransformedCode(code, segments), expected);
     });
-    it("replaces one segment at end correct", function() {
+    it("replaces one segment at end correct", function () {
       const code = "int main() {}";
-      const segments = [ { startIndex: 11, endIndex: 13, value: "{ exit(); }" } ];
+      const segments = [{ startIndex: 11, endIndex: 13, value: "{ exit(); }" }];
       const expected = "int main() { exit(); }";
       assert.equal(getTransformedCode(code, segments), expected);
     });
-    it("replaces one segment in middle correct", function() {
+    it("replaces one segment in middle correct", function () {
       const code = "int main() {}";
-      const segments = [ 
+      const segments = [
         { startIndex: 0, endIndex: 3, value: "double" },
-        { startIndex: 11, endIndex: 13, value: "{ exit(); }" } 
+        { startIndex: 11, endIndex: 13, value: "{ exit(); }" }
       ];
       const expected = "double main() { exit(); }";
       assert.equal(getTransformedCode(code, segments), expected);
     });
   });
-  describe("getTransformedRange", function() {
+  describe("getTransformedRange", function () {
     it('shifts range right with text insertion before range', () => {
       const originalRange = { startIndex: 10, endIndex: 15 };
       const changes = [{ startIndex: 5, endIndex: 5, value: "Hello" }];
@@ -330,8 +330,8 @@ describe("getEvaluatedCode", function() {
   });
 });
 
-describe('getVariables', function() {
-  it ('returns variable as declared when not reassigned', function() {
+describe('getVariables', function () {
+  it('returns variable as declared when not reassigned', function () {
     const steps = [{
       action: 'decl',
       identifier: 'i',
@@ -460,5 +460,67 @@ describe('getVariables', function() {
     }];
 
     assert.deepEqual(actual, expected);
+  });
+});
+
+describe("getCurrentCallTree", function () {
+  it('should handle a single invocation with no parameters or returns', function () {
+    const steps = [{ action: "invocation" }, { action: "return" }];
+    const expected = {
+      id: 0,
+      invocation: { action: "invocation" },
+      parameters: [],
+      return: [{ action: "return" }],
+      subcalls: []
+    };
+    assert.deepEqual(getCurrentCallTree(steps), expected);
+  });
+
+  it('should handle invocations with parameters', function () {
+    const steps = [
+      { action: "invocation" },
+      { action: "parameter" },
+      { action: "parameter" },
+      { action: "return" }
+    ];
+    const expected = {
+      id: 0,
+      invocation: { action: "invocation" },
+      parameters: [{ action: "parameter" }, { action: "parameter" }],
+      return: [{ action: "return" }],
+      subcalls: []
+    };
+    assert.deepEqual(getCurrentCallTree(steps), expected);
+  });
+
+  it('should handle nested invocations', function () {
+    const steps = [
+      { action: "invocation" },
+      { action: "parameter" },
+      { action: "invocation" },
+      { action: "return" },
+      { action: "return" }
+    ];
+    const expected = {
+      id: 0,
+      invocation: { action: "invocation" },
+      parameters: [{ action: "parameter" }],
+      return: [{ action: "return" }],
+      subcalls: [
+        {
+          id: 1,
+          invocation: { action: "invocation" },
+          parameters: [],
+          return: [{ action: "return" }],
+          subcalls: []
+        }
+      ]
+    };
+    assert.deepEqual(getCurrentCallTree(steps), expected);
+  });
+
+  it('should return undefined for an empty input', function () {
+    const steps = [];
+    assert.deepEqual(getCurrentCallTree(steps), undefined);
   });
 });

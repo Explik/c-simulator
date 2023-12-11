@@ -4,7 +4,7 @@
  * @property {string} simulatorCode
  * @property {SimulationStep[]} simulatorSteps
  */
-import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode, getCurrentStatementChanges, getCurrentStatementStep, attachCodePosition, attachStatementRef } from './wrapper-functions.js'
+import {isExpressionStep, isStatementStep, getFirstStep, getPreviousStep, getNextStep, getCurrentScopeVariables, getOutput, getCurrentEvaluatedCode, getCurrentStatementChanges, getCurrentStatementStep, attachCodePosition, attachStatementRef, getCurrentCallTree} from './wrapper-functions.js'
 
 
 class Simulation {
@@ -78,6 +78,10 @@ class Simulation {
 
     getCurrentScopeVariables() {
         return getCurrentScopeVariables(this.allSteps.slice(0, this.currentStep + 1))
+    }
+
+    getCurrentCallTree() {
+        return getCurrentCallTree(this.allSteps.slice(0, this.currentStep + 1));
     }
 
     getCurrentStatementChanges() {

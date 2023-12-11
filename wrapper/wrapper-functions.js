@@ -146,6 +146,14 @@ export function isInvocationStep(step) {
  * @param {SimulationStep} step
  * @returns {bool}
  */
+export function isParameterStep(step) {
+    return step.action == "parameter";
+}
+
+/**
+ * @param {SimulationStep} step
+ * @returns {bool}
+ */
 export function isReturnStep(step) {
     return step.action == "return";
 }
@@ -394,6 +402,42 @@ export function getCurrentStatementChanges(steps) {
     const evaluatedSegments = statementSteps.filter(isExpressionStep).map(getEvaluatedCodeSegment);
     return getNonOverlappingSegments(evaluatedSegments);
 }
+
+
+/**
+ * @param {SimulationStep[]} steps 
+ * @param {}
+ */
+export function getCurrentCallTree(steps) {
+    let invocationId = -1; // Reset for every call of the function
+
+    const root = { id: invocationId++, subcalls: [] };
+    let stack = [root];
+
+    for (const step of steps) {
+        if (isInvocationStep(step)) {
+            const currentInvoke = { 
+                id: invocationId++, 
+                invocation: step, 
+                parameters: [], 
+                return: [], 
+                subcalls: [] 
+            };
+            stack[stack.length - 1].subcalls.push(currentInvoke);
+            stack.push(currentInvoke);
+        }
+        else if (isParameterStep(step)) {
+            stack[stack.length - 1].parameters.push(step);
+        }
+        else if (isReturnStep(step)) {
+            stack[stack.length - 1].return.push(step);
+            stack.pop();
+        }
+    }
+
+    return root.subcalls.length === 1 ? root.subcalls[0] : undefined;
+}
+
 
 /**
  * maskSegment returns 
