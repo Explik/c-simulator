@@ -1,5 +1,5 @@
 from copy import copy
-from modification_nodes import ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
 from source_nodes import SourceNode, SourceNodeResolver, SourceRange, get_code_indexes
 
 # See https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -316,3 +316,19 @@ class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
             )
         return super().apply(node, middle_node=value_node, end_node=variable_node)
         
+# Transforms compound_1; compound_2; to notify(), compound_1; notify(), compound_2;
+class CompoundNotifyReplaceNode(NotifyBaseReplaceNode):
+    def __init__(self, target: SourceNode, children: list[NotifyBaseReplaceNode]) -> None:
+        super().__init__(target)
+        self.children = children
+
+    def apply(self, node: SourceNode) -> SourceNode:
+        if not any(self.start_notifies) and not any(self.end_notifies):
+            return node
+        
+        new_children = []
+        new_children.append(self.children[0].with_start_notifies(self.start_notifies) if any(self.start_notifies) else self.children[0])
+        new_children.extend(self.children[1:-1])
+        new_children.append(self.children[-1].with_end_notifies(self.end_notifies) if any(self.end_notifies) else self.children[-1])
+
+        return CompoundReplaceNode(node, new_children).apply(node)

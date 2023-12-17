@@ -2,6 +2,7 @@
 import glob
 import os
 import sys
+import shutil
 from rewrite import generate_output_files, write_file
 
 if __name__ == "__main__":
@@ -15,7 +16,9 @@ if __name__ == "__main__":
     for input_file in input_files:
         input_file_name = os.path.splitext(os.path.basename(input_file))[0]
         output_directory = os.path.join(output_root_directory, input_file_name)
-        os.makedirs(output_directory, exist_ok=True)
+        
+        if os.path.exists(output_directory):
+            shutil.rmtree(output_directory)
 
         try: 
             generate_output_files(script_file, input_file, output_directory)

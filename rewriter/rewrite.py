@@ -5,7 +5,7 @@ import os
 import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
-from source_nodes import SourceTreeCreator, SourceTreePrinter
+from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter
 from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
 
 def read_file(file_name): 
@@ -15,7 +15,7 @@ def read_file(file_name):
     return buffer
 
 def write_file(file_name, content): 
-    f = open(file_name, "w")
+    f = open(file_name, "x")
     f.write(content)
     f.close()
 
@@ -105,7 +105,25 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     js_target_content = js_target_content.replace("{notifications}", notification_json)
     write_file(js_target_path, js_target_content)
 
-def generate_output_files(script_file, input_file, output_directory): 
+def generate_output_files(script_file, input_file, output_directory, run_dry_run = True): 
+    # Reset application state 
+    os.makedirs(output_directory, exist_ok=True)
+    SourceNode.id = 0
+
+    # Dry-run 
+    if run_dry_run:
+        dry_run_js_output = os.path.join(output_directory, 'dryrun.js')
+        dry_run_wasm_output = os.path.join(output_directory, 'dryrun.wasm')
+        dry_run_command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" -o %s' % (input_file, dry_run_js_output)
+        dry_run_result = os.system(dry_run_command)
+        if (os.path.exists(dry_run_js_output)): 
+            os.remove(dry_run_js_output)
+        if (os.path.exists(dry_run_wasm_output)):
+            os.remove(dry_run_wasm_output)
+
+        if dry_run_result != 0: 
+            raise Exception("Dry run \"%s\" failed with status %s" % (dry_run_command, dry_run_result))
+
     # Generate temporary files 
     prejs_path = get_path_with_name(script_file, 'prejs.js')
     temp_c_path = os.path.join(output_directory, 'temp.g.c')
@@ -113,12 +131,14 @@ def generate_output_files(script_file, input_file, output_directory):
     generate_temp_files(input_file, prejs_path, temp_c_path, temp_js_path)
 
     # Generate output.js file
-    library_path = get_path_with_name(script_file, 'library.js')
     output_c_path = os.path.join(output_directory, 'output.js')
+    library_path = get_path_with_name(script_file, 'library.js')
     args = (temp_c_path, temp_js_path, library_path, output_c_path)
     command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s -o %s' % args
-    print(command)
-    os.system(command)
+    command_result = os.system(command)
+    
+    if command_result != 0: 
+        raise Exception("Rewrite \"%s\" failed with status %s" % (dry_run_command, dry_run_result))
 
     # Generate index.html file
     index_source_file = get_path_with_name(script_file, 'index.html')
