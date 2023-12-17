@@ -1,6 +1,10 @@
 # Based on https://github.com/github/gitignore/blob/main/Node.gitignore
 # Propject-specific files
-rewriter/__fake_libc_include__/*
+*.g.c
+*.g.js
+*.wasm
+output.js
+./examples/**/*.*
 
 # Logs
 logs

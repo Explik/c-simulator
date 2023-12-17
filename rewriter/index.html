@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic example Example</title>
+</head>
+<body style="max-width: 500px;">
+    <div>
+        <div><pre><code id="evaluated-code" class="language-c"></code></pre></div>
+        <div style="position: absolute; top:14px; left:14px; color:rgba(34, 34, 200, 0.3)"><pre id="highlighted-code">██████</pre></div>
+    </div>
+    <div><pre id="statement" style="padding:16px;background:#f3f3f3;color:green;font-weight:bold;"></pre></div>
+    <div><pre id="stdout" style="padding:16px;background:#f3f3f3;color:green;font-weight:bold;"></pre></div>
+    <table id="variables" class="table table-dark"></table>
+    <button onclick="stepBackward()">Previous</button>
+    <button onclick="stepForward()">Next</button>
+    
+    <!-- Syntax highlight -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/c.min.js"></script>
+    
+    <!-- UI styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <!-- Simulation -->
+    <script src="../../dist/bundle.js"></script>
+    <script src="output.js"></script>
+    <script>
+        var simulation;
+
+        document.onkeydown = function(e) {
+            e = e || window.event;
+
+            if (e.keyCode == '37') {
+                // left arrow
+                stepBackward();
+            }
+            else if (e.keyCode == '39') {
+                // right arrow
+                stepForward();
+            }
+            e.preventDefault();
+        }
+
+        Module.onRuntimeInitialized = function() { 
+            simulation = Simulation.create(Module);
+            simulation.run();
+            updateCode();
+        };
+
+        function stepForward() {
+            simulation.stepForward();
+            updateCode();
+        }
+
+        function stepBackward() {
+            simulation.stepBackward();
+            updateCode();
+        }
+
+        function updateCode() {
+            // Update code sample
+            var code = simulation.getCode();
+            var codeChanges = simulation.getCurrentStatementChanges();
+            var updatedCode = SimulationFunctions.getTransformedCode(code, codeChanges);
+            document.getElementById("evaluated-code").innerHTML = escapeHtml(updatedCode);
+            hljs.highlightAll();
+
+            // Update highlight mask
+            var originalStatmentRange = simulation.getCurrentStatementRange();
+            var updatedStatementRange = SimulationFunctions.getTransformedRange(originalStatmentRange, codeChanges);
+            var { startLine, startColumn, endColumn } = SimulationFunctions.getCodePositions(updatedStatementRange, updatedCode);
+            var maskedRange = "\n".repeat(Math.max(0, startLine - 1)) + " ".repeat(Math.max(0, startColumn - 1)) + "█".repeat(Math.max(0, endColumn - startColumn));
+            document.getElementById('highlighted-code').innerHTML = maskedRange;
+            
+            // Update statement reference
+            document.getElementById("statement").innerHTML = escapeHtml(simulation.getCurrentStatementRef());  
+
+            // Update output
+            document.getElementById("stdout").innerHTML = escapeHtml(simulation.getOutput());
+
+            // Update variables 
+            var headerRow = "<tr><td>Variable</td><td>Type</td><td>Value</td>";
+            var dataRows = simulation
+                .getCurrentScopeVariables()
+                .map(v => ({
+                    name: SimulationFunctions.getFormattedName(v), 
+                    type: SimulationFunctions.getFormattedType(v), 
+                    value: SimulationFunctions.getFormattedStringValue(v)
+                }))
+                .map(v => `<tr><td>${v.name}</td><td>${v.type}</td><td>${v.value}</td></tr>`);
+            document.getElementById("variables").innerHTML = `<thead>${headerRow}</thead><tbody>${dataRows}</tbody>`;
+        
+            var callTree = simulation.getCurrentCallTree();
+            console.log(callTree);
+        }
+
+        function escapeHtml(unsafe)
+        {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+</script>
+
+</body>
+</html>

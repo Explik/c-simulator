@@ -1,10 +1,12 @@
 import sys
+import shutil
 import json
 import os
 import clang.cindex
 from ast_visitors import AstPrinter
+from pathlib import Path
 from source_nodes import SourceTreeCreator, SourceTreePrinter
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
 
 def read_file(file_name): 
     f = open(file_name)
@@ -56,6 +58,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
         PartialTreeVisitor_VarDecl_Initialized(),
         PartialTreeVisitor_VarDecl_Unitialized(),
         PartialTreeVisitor_CallExpr(),
+        #PartialTreeVisitor_ConditionalOperator(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
@@ -102,23 +105,35 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     js_target_content = js_target_content.replace("{notifications}", notification_json)
     write_file(js_target_path, js_target_content)
 
-if __name__ == "__main__":
-    #if len(sys.argv) < 2:
-    #    raise Exception("Sorry, please supply an input file")
-
-    script_file = sys.argv[0]
-    input_file = 'C:\\Users\\ovs\\source\\repos\\c-simulator\\examples\\basic-example\\main.c' #sys.argv[1]
-
+def generate_output_files(script_file, input_file, output_directory): 
     # Generate temporary files 
     prejs_path = get_path_with_name(script_file, 'prejs.js')
-    temp_c_path = get_path_with_extension(input_file, 'g.c')
-    temp_js_path = get_path_with_extension(input_file, 'g.js')
+    temp_c_path = os.path.join(output_directory, 'temp.g.c')
+    temp_js_path = os.path.join(output_directory, 'temp.g.js')
     generate_temp_files(input_file, prejs_path, temp_c_path, temp_js_path)
 
-    # Generate output file
+    # Generate output.js file
     library_path = get_path_with_name(script_file, 'library.js')
-    output_c_path = get_path_with_name(input_file, 'output.js')
+    output_c_path = os.path.join(output_directory, 'output.js')
     args = (temp_c_path, temp_js_path, library_path, output_c_path)
     command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s -o %s' % args
     print(command)
     os.system(command)
+
+    # Generate index.html file
+    index_source_file = get_path_with_name(script_file, 'index.html')
+    index_output_file = os.path.join(output_directory, 'index.html')
+
+    shutil.copyfile(index_source_file, index_output_file)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        raise Exception("Sorry, please supply an input file")
+
+    script_file = sys.argv[0]
+    script_file_directory = os.path.split(script_file)[0]
+    input_file = sys.argv[1]
+    input_file_directory = os.path.split(input_file)[0]
+    output_directory = sys.argv[2] if len(sys.argv) >= 3 else input_file_directory
+
+    generate_output_files(script_file, input_file, output_directory)

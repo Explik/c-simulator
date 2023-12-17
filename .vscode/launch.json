@@ -5,13 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Basic example",
+            "name": "Rewrite: All examples",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}\\rewriter\\rewrite.py",
-            "args": ["${workspaceFolder}\\examples\\basic-example\\main.c"],
+            "program": "${workspaceFolder}\\rewriter\\rewrite-multiple.py",
+            "args": [
+                "${workspaceFolder}\\examples\\*.c",
+                "${workspaceFolder}\\examples"
+            ],
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
