@@ -2,7 +2,7 @@
 import glob
 import os
 import sys
-from rewrite import generate_output_files
+from rewrite import generate_output_files, write_file
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -15,6 +15,12 @@ if __name__ == "__main__":
     for input_file in input_files:
         input_file_name = os.path.splitext(os.path.basename(input_file))[0]
         output_directory = os.path.join(output_root_directory, input_file_name)
-
         os.makedirs(output_directory, exist_ok=True)
-        generate_output_files(script_file, input_file, output_directory)
+
+        try: 
+            generate_output_files(script_file, input_file, output_directory)
+        except Exception as ex: 
+            error_file = os.path.join(output_directory, "errors.txt")
+            error_text = f"{ex}"
+            write_file(error_file, error_text)
+            print("Failed to rewrite file %s with error %s" % (input_file, error_text))

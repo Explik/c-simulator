@@ -16,6 +16,18 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Rewrite: Current C File",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}\\rewriter\\rewrite-multiple.py",
+            "console": "integratedTerminal",
+            "args": [
+                "${file}",
+                "${fileDirname}\\${fileBasenameNoExtension}"
+            ],
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
