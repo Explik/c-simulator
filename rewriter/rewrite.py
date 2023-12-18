@@ -2,6 +2,7 @@ import sys
 import shutil
 import json
 import os
+import subprocess
 import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
@@ -18,6 +19,13 @@ def write_file(file_name, content):
     f = open(file_name, "x")
     f.write(content)
     f.close()
+
+def run_command(command): 
+    try:
+        result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        return (result.returncode, result.stdout)
+    except subprocess.CalledProcessError as e:
+        return (e.returncode, e.output)
 
 def get_path_with_name(file_path, file_name): 
     file_path_components = os.path.split(file_path)
@@ -110,19 +118,23 @@ def generate_output_files(script_file, input_file, output_directory, run_dry_run
     os.makedirs(output_directory, exist_ok=True)
     SourceNode.id = 0
 
+    # Copy source file
+    c_output_file = os.path.join(output_directory, 'source.c')
+    shutil.copyfile(input_file, c_output_file)
+
     # Dry-run 
     if run_dry_run:
         dry_run_js_output = os.path.join(output_directory, 'dryrun.js')
         dry_run_wasm_output = os.path.join(output_directory, 'dryrun.wasm')
         dry_run_command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" -o %s' % (input_file, dry_run_js_output)
-        dry_run_result = os.system(dry_run_command)
+        (dry_run_result, dry_run_console) = run_command(dry_run_command)
         if (os.path.exists(dry_run_js_output)): 
             os.remove(dry_run_js_output)
         if (os.path.exists(dry_run_wasm_output)):
             os.remove(dry_run_wasm_output)
 
         if dry_run_result != 0: 
-            raise Exception("Dry run \"%s\" failed with status %s" % (dry_run_command, dry_run_result))
+            raise Exception("Dry run \"%s\" failed with status %s and the following console output \n%s" % (dry_run_command, dry_run_result, dry_run_console))
 
     # Generate temporary files 
     prejs_path = get_path_with_name(script_file, 'prejs.js')
@@ -135,10 +147,10 @@ def generate_output_files(script_file, input_file, output_directory, run_dry_run
     library_path = get_path_with_name(script_file, 'library.js')
     args = (temp_c_path, temp_js_path, library_path, output_c_path)
     command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s -o %s' % args
-    command_result = os.system(command)
+    (command_result, command_console) = run_command(command)
     
     if command_result != 0: 
-        raise Exception("Rewrite \"%s\" failed with status %s" % (dry_run_command, dry_run_result))
+        raise Exception("Rewrite \"%s\" failed with status %s and the following console output \n%s" % (dry_run_command, dry_run_result, command_console))
 
     # Generate index.html file
     index_source_file = get_path_with_name(script_file, 'index.html')
