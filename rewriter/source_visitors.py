@@ -199,7 +199,7 @@ class CompositeTreeVisitor(SourceTreeVisitor):
 class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         node_type = SourceNodeResolver.get_type(source_node)
-        return node_type in ["IntegerLiteral", "StringLiteral", "FloatingLiteral"]
+        return node_type in ["CharacterLiteral", "IntegerLiteral", "StringLiteral", "FloatingLiteral"]
     
     def visit(self, target_node: SourceNode):
         buffer = ExprNotifyReplaceNode(target_node)
