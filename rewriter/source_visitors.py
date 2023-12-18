@@ -370,8 +370,8 @@ class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
     
     def visit(self, source_node: SourceNode):
         notify_list = self.register([
-            StatNotifyData(source_node),
-            DeclNotifyData(source_node.parent)
+            StatNotifyData(source_node.parent),
+            DeclNotifyData(source_node)
         ])
         return PreExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
 
@@ -425,7 +425,11 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         return CompoundReplaceNode(function_body_node, filtered_result)
     
     def push_variable(self, source_node: SourceNode) -> InsertModificationNode:
-        variable_type = source_node.node.type.spelling
+        node_type = source_node.node.type.spelling
+        print("type: " + node_type)
+        if not node_type: raise Exception("Node is missing type")
+
+        variable_type = node_type
         variable_name = f"temp{len(self.variables)}"
         variable = ConstantNode(f"{variable_type} {variable_name};")
         self.variables.append(variable)

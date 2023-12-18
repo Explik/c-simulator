@@ -57,19 +57,25 @@ class BaseNotify():
 
 class AssignNotifyData(BaseNotify):
     def __init__(self, node: SourceNode, identifier_node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+        
         super().__init__(node)
         self.action = "assign"
         self.identifier = f"{identifier_node}"
-        self.type = node.node.type.spelling
+        self.type = node_type
 
     def get_identifiers(self) -> list[str]:
         return [self.identifier]
 
 class DeclNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+
         super().__init__(node)
         self.action = "decl"
-        self.type = node.node.type.spelling
+        self.type = node_type
         self.identifier = node.node.spelling
         self.scope = SourceNodeResolver.get_scope(node)
         self.eval_identifier = f"temp{node.id}"
@@ -79,9 +85,12 @@ class DeclNotifyData(BaseNotify):
 
 class EvalNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+
         super().__init__(node)
         self.action = "eval"
-        self.type = node.node.type.spelling
+        self.type = node_type
         self.eval_identifier = f"temp{node.id}"
 
     def get_identifiers(self) -> list[str]:
@@ -89,16 +98,22 @@ class EvalNotifyData(BaseNotify):
 
 class InvocationNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+
         super().__init__(node)
         self.action = "invocation"
-        self.type = node.node.type.spelling
+        self.type = node_type
         self.identifier = node.node.spelling
 
 class ParameterNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+
         super().__init__(node)
         self.action = "par"
-        self.type = node.node.type.spelling
+        self.type = node_type
         self.identifier = node.node.spelling
         self.scope = SourceNodeResolver.get_scope(node)
 
@@ -107,9 +122,12 @@ class ParameterNotifyData(BaseNotify):
 
 class ReturnNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
+        node_type = node.node.type.spelling
+        if not node_type: raise Exception("Type is empty")
+
         super().__init__(node)
         self.action = "return"
-        self.type = node.node.type.spelling
+        self.type = node_type
         self.eval_identifier = f"temp{node.id}"
 
     def get_identifiers(self) -> list[str]:
