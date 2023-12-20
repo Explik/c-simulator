@@ -55,8 +55,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
 
     print('\nGenerating source tree...')
     source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
-    SourceTreePrinter(False).print(source_root)
-    SourceTreePrinter(True).print(source_root)
+    SourceTreePrinter().print(source_root)
 
     print('\nGenerating modification tree...')
     partial_visitors = [
