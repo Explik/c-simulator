@@ -1,16 +1,5 @@
-def get_code_index(code, location) -> int: 
-    current_l = location.line
-    current_c = location.column - 1
-    lines = code.split("\n")
-    prior_lines = lines[0:current_l]
-    if len(prior_lines) > 0:
-        prior_lines[-1] = prior_lines[-1][0:current_c]
-        return len("\n".join(prior_lines))
-    else: 
-        return current_c
-
-def get_code_indexes(code, extent) -> (int, int):
-    return (get_code_index(code, extent.start), get_code_index(code, extent.end))
+import re
+from assertions import assert_type, assert_list_type
 
 class SourceText: 
     def __init__(self) -> None:
@@ -33,6 +22,7 @@ class SourceText:
         instance.end_index = end_index
         instance.value = value
         return instance
+
 
 class SourceToken(SourceText): 
     counter = 0
@@ -60,21 +50,32 @@ class SourceToken(SourceText):
     @staticmethod
     def copy(source: 'SourceToken'):
         instance = SourceToken()
-        instance.id = SourceToken.counter
+        instance.id = source.id
         instance.start_index = source.start_index
         instance.end_index = source.end_index
         instance.value = source.value
         instance.token = source.token
         return instance
 
+
 class SourceNode(SourceText): 
     counter = 0
     
     def __init__(self) -> None:
         super().__init__()
+        self.id: int|None = None
+        self.node: object|None = None
         self.parent: SourceNode|None = None
         self.values: list[SourceText] = []
     
+    def __eq__(self, node: object) -> bool:
+        if not(isinstance(node, SourceNode)): 
+            return False
+        return self.id == node.id
+
+    def __str__(self) -> str:
+        return "".join([f"{v}" for v in self.values])
+
     def get_children(self) -> list['SourceNode']: 
         return [v for v in self.values if type(v) == SourceNode]
     
@@ -99,14 +100,6 @@ class SourceNode(SourceText):
             return True
 
         return parent_type in ["ForStmt", "IfStmt", "WhileStmt"]
-
-    def __eq__(self, node: object) -> bool:
-        if not(isinstance(node, SourceNode)): 
-            return False
-        return self.id == node.id
-
-    def __str__(self) -> str:
-        return "".join([f"{v}" for v in self.values])
     
     @staticmethod
     def create(node, values: list[SourceText]) -> 'SourceNode':
@@ -114,14 +107,47 @@ class SourceNode(SourceText):
         instance = SourceNode()
         instance.id = SourceNode.counter
         instance.node = node
+        instance.start_index = min([v.start_index for v in values]) if len(values) and not any([v for v in values if v.start_index is None]) else None
+        instance.end_index = max([v.end_index for v in values]) if len(values) and not any([v for v in values if v.end_index is None]) else None
         instance.values = values
         return instance
     
     @staticmethod
+    def create_from_template(template_string: str, insertions: list[SourceText]): 
+        assert_type(template_string, str)
+        assert_list_type(insertions, SourceText)
+        
+        # Split template string of format {0}, {1}, {2}
+        pattern = re.compile(r'\{\d+\}')
+        template_parts = pattern.split(template_string)
+        template_placeholders = pattern.findall(template_string)
+
+        # Build values matching templates and insertions
+        values = []
+        for i, part in enumerate(template_parts):
+            # Add the token part
+            if part:
+                values.append(SourceText.create(None, None, part))
+            
+            # Add the placeholder if it exists
+            if i < len(template_placeholders):
+                placeholder_index = int(template_placeholders[i][1:-1])
+                
+                # Check if the placeholder index is within the bounds of the insertions array
+                if placeholder_index < len(insertions):
+                    values.append(insertions[placeholder_index])
+                else:
+                    raise IndexError(f"Placeholder index {placeholder_index} is out of bounds.")
+
+        return SourceNode.create(None, values)
+
+    @staticmethod
     def copy(source: 'SourceNode'): 
         s = SourceNode()
         s.id = source.id
-        s.node = s.node
+        s.node = source.node
+        s.start_index = source.start_index
+        s.end_index = source.end_index
         s.parent = s.parent
         s.values = source.values
         return s
@@ -131,7 +157,11 @@ class SourceNode(SourceText):
         return node1.id == node2.id
 
     @staticmethod
-    def replace_value(node: 'SourceNode', target: SourceText, replacements: list[SourceText]) -> 'SourceNode':
+    def replace_value(node: 'SourceNode', target: SourceText, *replacements: list[SourceText]) -> 'SourceNode':
+        assert_type(node, SourceNode)
+        assert_type(target, SourceText)
+        assert_list_type(replacements, SourceText)
+        
         value_index = next((i for i,v in enumerate(node.values) if v == target), None)
         if (value_index is None): raise Exception(f"None does not contain token")
 
@@ -140,25 +170,53 @@ class SourceNode(SourceText):
         new_node.values = new_values
         return new_node
 
+    @staticmethod
+    def replace_values(node: 'SourceNode', targets: list[SourceText], replacements: list[SourceText]) -> 'SourceNode':
+        assert_type(node, SourceNode)
+        assert_list_type(targets, SourceText)
+        assert_list_type(replacements, SourceText)
+        
+        if len(targets) != len(replacements):
+            raise Exception("Targets and replacements are not the same length")
+        
+        new_values = list(node.values)
+        target_indexes = [new_values.index(t) for t in targets]
+        for i in range(0, len(targets)):
+            new_values[target_indexes[i]] = replacements[i]
+
+        new_node = SourceNode.copy(node)
+        new_node.values = new_values
+        return new_node
+
+    @staticmethod
     def insert_before_value(node: 'SourceNode', target: SourceText, *insertions: list[SourceText]):
+        assert_type(node, SourceNode)
+        assert_type(target, SourceText)
+        assert_list_type(insertions, SourceText)
+        
         value_index = next((i for i,v in enumerate(node.values) if v == target), None)
         if (value_index is None): raise Exception(f"None does not contain token")
 
-        new_values = node.values[0:value_index-1] + insertions + node.values[value_index:]
+        new_values = node.values[0:value_index] + list(insertions) + node.values[value_index:]
         new_node = SourceNode.copy(node)
         new_node.values = new_values
         return new_node
     
+    @staticmethod
     def insert_after_value(node: 'SourceNode', target: SourceText, *insertions: list[SourceText]):
+        assert_type(node, SourceNode)
+        assert_type(target, SourceText)
+        assert_list_type(insertions, SourceText)
+        
         value_index = next((i for i,v in enumerate(node.values) if v == target), None)
         if (value_index is None): raise Exception(f"None does not contain token")
 
-        new_values = node.values[0:value_index-1] + insertions + node.values[value_index:]
+        new_values = node.values[0:value_index + 1] + list(insertions) + node.values[value_index + 1:]
         new_node = SourceNode.copy(node)
         new_node.values = new_values
         return new_node
 
-  
+
 class SourceNodeResolver: 
     """Utility methods for SourceNode information"""
     
@@ -169,24 +227,25 @@ class SourceNodeResolver:
         return "".join(x.capitalize() for x in kind.lower().split("_"))
     
     @staticmethod
-    def get_scope(node: SourceNode) -> None:
+    def get_scope(node: SourceNode) -> tuple[int, int]|None:
         parent: SourceNode = node.parent
         while parent is not None: 
             if SourceNodeResolver.get_type(parent) in ["CompoundStmt", "ForStmt", "FunctionDecl", "WhileStmt"]:
-                return None #parent.get_range()
+                return (parent.start_index, parent.end_index)
             parent = parent.parent
 
     @staticmethod
     def get_unary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
-        assert len(node.children) == 1
+        assert len(node.get_children()) == 1
         return node.get_tokens()[0].token.spelling
 
     @staticmethod
     def get_binary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
-        assert len(node.children) == 2
+        assert len(node.get_children()) == 2
         return node.get_tokens()[0].token.spelling
+
 
 class SourceTreeCreator: 
     def __init__(self, filter = None) -> None:
@@ -276,9 +335,10 @@ class SourceTreeCreator:
             self.attach_node_parents(child)
 
 class SourceTreePrinter:
-    def print(self, node, level = 0):
-        """Recursive print function to traverse the AST"""
-        print('  ' * level + f"{node} (#{node.id})".replace("\n", "\\n"))
+    def print(self, node: SourceNode, level = 0):
+        # Recursive print function to traverse the AST
+        assert_type(node, SourceNode)
 
+        print('  ' * level + f"{node} (#{node.id})".replace("\n", "\\n"))
         for child in node.get_children(): 
             self.print(child, level + 1)

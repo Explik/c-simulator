@@ -1,5 +1,6 @@
 import unittest
 from modification_nodes import ConstantNode, TemplatedNode, TemplatedReplaceNode, template_replace_node
+from source_nodes import SourceNode
 
 class TestFunctions(unittest.TestCase):
     def test_template_replace_node_1_args(self):
@@ -10,7 +11,8 @@ class TestFunctions(unittest.TestCase):
         with self.assertRaises(Exception):
             template_replace_node(
                 "{0}, {1}", 
-                ConstantNode("target"), 
+                "{0}, {1}",
+                SourceNode(), 
                 *input
             )
 
@@ -22,7 +24,8 @@ class TestFunctions(unittest.TestCase):
         ]
         output = template_replace_node(
             "{0}, {1}", 
-            ConstantNode("target"), 
+            "{0}, {1}",
+            SourceNode(), 
             *input
         )
         output_children = output.get_children()
@@ -41,7 +44,8 @@ class TestFunctions(unittest.TestCase):
         ]
         output = template_replace_node(
             "{0}, {1}", 
-            ConstantNode("target"), 
+            "{0}, {1}",
+            SourceNode(), 
             *input
         )
         output_children = output.get_children()
@@ -67,7 +71,8 @@ class TestFunctions(unittest.TestCase):
         ]
         output = template_replace_node(
             "{0}, {1}", 
-            ConstantNode("target"), 
+            "{0}, {1}", 
+            SourceNode(), 
             *input
         )
         output_children = output.get_children()

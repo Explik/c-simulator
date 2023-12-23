@@ -33,7 +33,7 @@ class SourceTreeVisitor:
         return node_result
 
     def generic_visit(self, source_node: SourceNode) -> ModificationNode|None: 
-        source_node_modifications = [self.visit(c) for c in source_node.children]
+        source_node_modifications = [self.visit(c) for c in source_node.get_children()]
         source_node_modifications_filtered = [m for m in source_node_modifications if m is not None]
 
         if len(source_node_modifications_filtered) == 0: 
@@ -49,9 +49,9 @@ class SourceTreeModifier:
 
     def visit(self, source_node: SourceNode): 
         # Depth first replacement
-        new_children = [self.visit(c) for c in source_node.children]
-        new_source_node = SourceNode.copy(source_node)
-        new_source_node.children = new_children
+        children = source_node.get_children()
+        new_children = [self.visit(c) for c in children]
+        new_source_node = SourceNode.replace_values(source_node, children, new_children)
 
         modification_node = next((m for m in self.modification_nodes if m.is_applicable(source_node)), None)
 
@@ -66,12 +66,13 @@ class ReplaceAdditionSourceTreeVisitor(SourceTreeVisitor):
         if SourceNodeResolver.get_binary_operator(source_node) != '+':
             return []
         
-        lvalue = self.visit(source_node.children[0])
+        children = source_node.get_children()
+        lvalue = self.visit(children[0])
         if len(lvalue) == 0: 
-            lvalue = [CopyNode(source_node.children[0])]
-        rvalue = self.visit(source_node.children[1])
+            lvalue = [CopyNode(children[0])]
+        rvalue = self.visit(children[1])
         if len(rvalue) == 0: 
-            rvalue = [CopyNode(source_node.children[1])]
+            rvalue = [CopyNode(children[1])]
         
         return TemplatedReplaceNode(
             source_node, 
@@ -104,7 +105,8 @@ class NodeData:
         self.id = node.id
         self.parent_id = node.parent and node.parent.id
         self.type = SourceNodeResolver.get_type(node)
-        self.range = node.get_range()
+        self.startIndex = node.start_index
+        self.endIndex = node.end_index
         self.is_statement = node.is_statement()
 
     def serialize(self, code):
@@ -112,7 +114,7 @@ class NodeData:
         buffer["id"] = self.id
         buffer["parentId"] = self.parent_id or "undefined"
         buffer["type"] = "\"" + self.type + "\""
-        buffer["range"] = self.range.serialize(code)
+        buffer["range"] = "{\"startIndex\": " + f"{self.startIndex}" + ", \"endIndex\": " + f"{self.endIndex}" + "}"
         buffer["isStatement"] = "true" if self.is_statement else "false"
         return self.serialize_dict(buffer)
 
@@ -166,11 +168,11 @@ class CompositeTreeVisitor(SourceTreeVisitor):
             return partial_visitor.visit(source_node)
         
         # Adding 
-        source_node_modifications = [self.visit(c) for c in source_node.children]
+        source_node_modifications = [self.visit(c) for c in source_node.get_children()]
         source_node_modifications_filtered = [m for m in source_node_modifications if m is not None]
 
         if len(source_node_modifications_filtered) == 0: 
-            return None
+            raise Exception(f"Unsupported node \"{source_node}\" ({SourceNodeResolver.get_type(source_node)})")
         elif len(source_node_modifications_filtered) == 1: 
             return source_node_modifications_filtered[0]
         else: 
@@ -288,7 +290,7 @@ class PartialTreeVisitor_BinaryOperator(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         notify_data = self.register(EvalNotifyData(source_node))
-        child_results = [self.visit(c) for c in source_node.get_children()]
+        child_results = [self.callback(c) for c in source_node.get_children()]
         buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
 
         if source_node.is_statement():
@@ -325,7 +327,7 @@ class PartialTreeVisitor_ConditionalOperator(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         notify_data = self.register(EvalNotifyData(source_node))
-        child_results = [self.visit(c) for c in source_node.get_children()]
+        child_results = [self.callback(c) for c in source_node.get_children()]
         buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(notify_data)
 
         if source_node.is_statement():
@@ -419,7 +421,7 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         identifiers = list(set([n.eval_identifier for n in filtered_notifies]))
         unique_notifies = [next(n for n in filtered_notifies if n.eval_identifier == i) for i in identifiers]
         declarations = [f"{n.type} {n.eval_identifier};" for n in unique_notifies]
-        declaration_block = ConstantNode("\n".join(declarations))
+        declaration_block = ConstantNode("\n    " + "\n    ".join(declarations))
         filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
 
         return CompoundReplaceNode(function_body_node, filtered_result)

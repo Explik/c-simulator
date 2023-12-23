@@ -1,6 +1,6 @@
 from copy import copy
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
-from source_nodes import SourceNode, SourceNodeResolver, SourceRange, get_code_indexes
+from source_nodes import SourceNode, SourceNodeResolver
 
 # See https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
@@ -17,7 +17,7 @@ class BaseNotify():
         self.notify_id: str| None = None
         
         self.action: str|None = None
-        self.scope: SourceRange|None = None
+        self.scope: tuple|None = None
         self.type:str|None = None
         self.identifier:str|None = None
         self.parameters: list[str]|None = None
@@ -34,19 +34,38 @@ class BaseNotify():
 
     def serialize(self, code):
         buffer = dict()
-        buffer["id"] = f"{self.id}"
-        buffer["nodeId"] = f"{self.node_id}"
-        buffer["notifyId"] = f"{self.notify_id}"
-        buffer["action"] = f"\"{self.action}\""
+
+        if self.id is not None: 
+            buffer["id"] = f"{self.id}"
+        else: raise Exception("Property id is None")
+        
+        if self.action is not None: 
+            buffer["action"] = f"\"{self.action}\""
+        else: raise Exception("Property action is None")
+
+        if self.node_id is not None: 
+            buffer["nodeId"] = f"{self.node_id}"
+        else: raise Exception("Property node_id is None")
+        
+        if self.notify_id is not None: 
+            buffer["notifyId"] = f"{self.notify_id}" if self.notify_id is not None else "undefined"
+        else: raise Exception("Property notify_id is None")
 
         if (self.action in ["assign", "eval", "decl", "return", "invocation", "par"]):
-            buffer["dataType"] = f"\"{self.type}\""
+            if self.type is not None:
+                buffer["dataType"] = f"\"{self.type}\""
+            else: raise Exception("Property type is None")
         
         if (self.action in ["decl", "par"]):
-            buffer["scope"] = self.scope.serialize(code)
+            if self.scope is not None: 
+                (start_index, end_index) = self.scope
+                buffer["scope"] = "{ \"startIndex\": " + f"{start_index}" + ", \"endIndex\": " + f"{end_index}" +  " }"
+            else: raise Exception("Property scope is None")
 
         if (self.action in ["assign", "decl", "invocation", "par"]):
-            buffer["identifier"] = f"\"{self.identifier}\""
+            if self.identifier is not None: 
+                buffer["identifier"] = f"\"{self.identifier}\""
+            else: raise Exception("Property identifier is None")
 
         return self.serialize_dict(buffer)
 
@@ -165,6 +184,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
 
         if any(self.start_notifies): 
             start_reference = self.start_notifies[0].notify_id
+            if start_reference is None: raise Exception(f"notify_id is None on start_notifies")
             list_1 = [f"&{i}" for i in start_identifiers]
             list_2 = [f"{start_reference}"] + list_1
             placeholders.append(ConstantNode(f"notify_{len(start_identifiers)}({', '.join(list_2)})"))
@@ -174,6 +194,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         
         if any(self.end_notifies):
             end_reference = self.end_notifies[0].notify_id
+            if end_reference is None: raise Exception(f"notify_id is None on end_notifies")
             list_1 = [f"&{i}" for i in end_identifiers]
             list_2 = [f"{end_reference}"] + list_1
             placeholders.append(ConstantNode(f"notify_{len(end_identifiers)}({', '.join(list_2)})"))
