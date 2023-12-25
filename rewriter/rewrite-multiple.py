@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
         try: 
             generate_output_files(script_file, input_file, output_directory)
+            #shutil.rmtree(output_directory, ignore_errors=True)
         except Exception as ex: 
             error_file = os.path.join(output_directory, "errors.txt")
             error_text = f"{ex}"

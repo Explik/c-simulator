@@ -20,6 +20,9 @@ def get_token_equals(token1, token2):
 class ModificationNode():
     def get_children(self) -> list['ModificationNode']:
         return []
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}()"
 
 class InsertModificationNode(ModificationNode):
     def apply(self) -> SourceNode:
@@ -41,6 +44,9 @@ class ConstantNode(InsertModificationNode):
     
     def apply(self) -> SourceNode:
         return SourceText.create(None, None, self.value)
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(value = \"{self.value}\")"
 
 class CopyNode(InsertModificationNode):
     def __init__(self, source: SourceNode) -> None:
@@ -51,6 +57,9 @@ class CopyNode(InsertModificationNode):
     
     def apply(self) -> SourceNode:
         return SourceNode.copy(self.source)
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(source = \"{self.source}\")"
 
 class CopyReplaceNode(InsertModificationNode):
     def __init__(self, source: SourceNode, replacements: list[ReplaceModificationNode]) -> None:
@@ -90,6 +99,9 @@ class CopyReplaceNode(InsertModificationNode):
         children = [(replacement if c == target else c) for c in self.replacements]
         return CopyReplaceNode(self.source, children)
 
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(source = \"{self.source}\", replacements=[{len(self.replacements)} item(s)])"
+
 class TemplatedNode(InsertModificationNode):
     def __init__(self, template: str, insertions: list[InsertModificationNode]) -> None:
         assert_type(template, str)
@@ -105,6 +117,9 @@ class TemplatedNode(InsertModificationNode):
     
     def get_children(self) -> list[ModificationNode]:
         return self.insertions
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(template = {self.template}, insertions = [{len(self.template)} items])"
 
 # Replace nodes
 class ReplaceNode(ReplaceModificationNode):
@@ -125,6 +140,9 @@ class ReplaceNode(ReplaceModificationNode):
     
     def get_children(self) -> list[ModificationNode]:
         return [self.replacement]
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(target = \"{self.target}\", insertion = \"{self.insertion}\")"
 
 class ReplaceTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
@@ -151,6 +169,9 @@ class ReplaceTokenNode(ReplaceModificationNode):
     
     def get_children(self) -> list[ModificationNode]:
         return [self.insertion]
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(targetNode = \"{self.targetNode}\", targetToken = \"{self.targetToken}\", insertion = \"{self.insertion}\")"
 
 class ReplaceTokenKindNode(ReplaceTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, replacement: ModificationNode) -> None:
@@ -189,6 +210,9 @@ class ReplaceChildrenNode(ReplaceModificationNode):
     
     def get_children(self) -> list[ModificationNode]:
         return self.insertions
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(target = \"{self.target}\", insertions = [{len(self.insertions)} items])"
 
 class CompoundReplaceNode(ReplaceModificationNode):
     def __init__(self, target: SourceNode|None, modifications: list[ReplaceModificationNode]) -> None:
@@ -238,6 +262,9 @@ class CompoundReplaceNode(ReplaceModificationNode):
         else: 
             return new_source_node
 
+    def get_children(self) -> list[ModificationNode]:
+        return self.modifications
+
     @staticmethod
     def isApplicableCommonAncestor(node, modifications: list[ModificationNode]):
         for modifications in modifications:
@@ -256,6 +283,9 @@ class CompoundReplaceNode(ReplaceModificationNode):
                 return True
             
         return False
+
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(target = \"{self.target}\", modifications = [{len(self.modifications)} items])"
 
 class TemplatedReplaceNode(ReplaceModificationNode): 
     def __init__(self, target: SourceNode, template: str, insertions: list[InsertModificationNode]) -> None:
@@ -280,6 +310,9 @@ class TemplatedReplaceNode(ReplaceModificationNode):
     
     def get_children(self) -> list[ModificationNode]:
         return self.insertions
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(target = \"{self.target}\", template = \"{self.template}\", insertions = [{len(self.insertions)} items])"
 
 class InsertAfterTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
@@ -307,7 +340,10 @@ class InsertAfterTokenNode(ReplaceModificationNode):
         return SourceNode.insert_after_value(target, self.targetToken, insertion_token)
     
     def get_children(self) -> list[ModificationNode]:
-        return [self.replacement]
+        return [self.insertion]
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(targetNode = \"{self.targetNode}\", targetToken = \"{self.targetToken}\", insertion = \"{self.insertion}\")"
 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: InsertModificationNode) -> None:
@@ -320,32 +356,6 @@ class InsertAfterTokenKindNode(InsertAfterTokenNode):
             raise Exception(f"Target node {targetNode.id} does not contain token of kind {targetTokenKind}")
         
         super().__init__(targetNode, targetToken, insertion)
-
-class InsertIntializerNode(ReplaceModificationNode):
-    def __init__(self, target: SourceNode, initializer: InsertModificationNode):
-        assert_type(target, SourceNode)
-        assert_type(initializer, InsertModificationNode)
-
-        if SourceNodeResolver.get_type(target) != "VarDecl" or len(target.get_children()) != 0:
-            raise Exception("InsertInitializerNode only supports VarDecl without children")
-
-        super().__init__()
-        self.target = target
-        self.intializer = initializer
-
-    def is_applicable(self, node: SourceNode) -> bool:
-        assert_type(node, SourceNode)
-        return SourceNode.equals(node, self.target)
-    
-    def apply(self, target: SourceNode) -> SourceNode:
-        assert_type(target, SourceNode)
-        
-        return SourceNode.create(
-            None,
-            target.value + " = {0}",
-            target.get_tokens(),
-            [self.intializer.apply()]
-        )
 
 # Node creation functions 
 # Template functions are recursive by default
@@ -421,3 +431,13 @@ def compound_replace_node(target, *args):
         template,
         args
     )
+
+# Node-dependent classes 
+class ModificationTreePrinter:
+    def print(self, node: ModificationNode, level = 0):
+        # Recursive print function to traverse the AST
+        assert_type(node, ModificationNode)
+
+        print('  ' * level + f"{node}".replace("\n", "\\n"))
+        for child in node.get_children(): 
+            self.print(child, level + 1)

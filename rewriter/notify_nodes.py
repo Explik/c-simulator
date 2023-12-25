@@ -1,5 +1,6 @@
 from copy import copy
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
+from modification_nodes import ModificationNode
 from source_nodes import SourceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
@@ -273,6 +274,9 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         instance = self.clone()
         instance.end_notifies = instance.end_notifies + data_list
         return instance
+    
+    def __str__(self) -> str:
+        return f"{type(self).__name__}(target = \"{self.target}\", start_notifies = [{len(self.start_notifies)} items], end_notifies = [{len(self.end_notifies)} items])"
 
 # Transforms expr to expr = notify(), temp, notify(), temp
 class PreExprNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -361,6 +365,9 @@ class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
             self.children
         )
         return super().apply(node, middle_node=value_node)
+    
+    def get_children(self) -> list[ModificationNode]:
+        return self.children
 
 # Transforms compound_expr to notify(), temp = compound_expr, notify(), temp
 class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -386,6 +393,9 @@ class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
                 self.children
             )
         return super().apply(node, middle_node=value_node, end_node=variable_node)
+    
+    def get_children(self) -> list[ModificationNode]:
+        return self.children
         
 # Transforms compound_1; compound_2; to notify(), compound_1; notify(), compound_2;
 class CompoundNotifyReplaceNode(NotifyBaseReplaceNode):
@@ -394,12 +404,24 @@ class CompoundNotifyReplaceNode(NotifyBaseReplaceNode):
         self.children = children
 
     def apply(self, node: SourceNode) -> SourceNode:
-        if not any(self.start_notifies) and not any(self.end_notifies):
-            return node
-        
         new_children = []
-        new_children.append(self.children[0].with_start_notifies(self.start_notifies) if any(self.start_notifies) else self.children[0])
-        new_children.extend(self.children[1:-1])
-        new_children.append(self.children[-1].with_end_notifies(self.end_notifies) if any(self.end_notifies) else self.children[-1])
+        children = self.get_children()
+        if len(children) == 0: 
+            return node
+        elif len(children) == 1:
+            new_children.append(self.apply_to_end(self.apply_to_first(self.children[0])))
+        else: 
+            new_children.append(self.apply_to_first(self.children[0]))
+            new_children.extend(self.children[1:-1])
+            new_children.append(self.apply_to_end(self.children[-1]))
 
         return CompoundReplaceNode(node, new_children).apply(node)
+
+    def apply_to_first(self, node): 
+        return node.with_start_notifies(self.start_notifies) if any(self.start_notifies) else node
+    
+    def apply_to_end(self, node):
+        return node.with_end_notifies(self.end_notifies) if any(self.end_notifies) else node
+
+    def get_children(self) -> list[ModificationNode]:
+        return self.children

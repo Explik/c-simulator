@@ -6,6 +6,7 @@ import subprocess
 import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
+from modification_nodes import ModificationTreePrinter
 from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
 from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
 
@@ -76,6 +77,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     ]
     composite_visitor = CompositeTreeVisitor(partial_visitors)
     modification_root = composite_visitor.visit(source_root)
+    ModificationTreePrinter().print(modification_root)
     
     print("\nGenerating code file...")
     modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)

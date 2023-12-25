@@ -1,7 +1,7 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
 from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
 from source_nodes import SourceNode, SourceNodeResolver, SourceTypeResolver
 
@@ -363,7 +363,8 @@ class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
     def visit(self, source_node: SourceNode):
         stat_notify = self.register(StatNotifyData(source_node.parent))
         decl_notify = self.register(DeclNotifyData(source_node))
-        return self.callback(source_node.get_children()[0]).with_start_notify(stat_notify).with_end_notify(decl_notify)
+        child_result = self.callback(source_node.get_children()[0])
+        return child_result.with_start_notify(stat_notify).with_end_notify(decl_notify)
 
 # Transforms int a, b; to int a = (temp, notify(), temp), b = (temp, notify(), temp)
 class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
