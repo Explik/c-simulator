@@ -268,10 +268,11 @@ class SourceNodeResolver:
             parent = parent.parent
 
     @staticmethod
-    def get_unary_operator(node: SourceNode) -> str:
+    def get_unary_operator(node: SourceNode) -> str|None:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
         assert len(node.get_children()) == 1
-        return node.get_tokens()[0].token.spelling
+        tokens = node.get_tokens()
+        return tokens[0].token.spelling if any(tokens) else None
 
     @staticmethod
     def get_binary_operator(node: SourceNode) -> str:
@@ -322,7 +323,7 @@ class SourceTreeCreator:
 
         code_map = self.create_code_map(code)
         token_seq = self.create_token_sequence(tokens, code, code_map)
-        node_tree = self.create_node_tree(root, nodes, code_map, token_seq)
+        node_tree = self.create_node_tree(root, 0, len(code), nodes, code, code_map, token_seq)
         self.attach_node_parents(node_tree)
 
         return node_tree
@@ -367,30 +368,29 @@ class SourceTreeCreator:
 
         return buffer
 
-    def create_node_tree(self, node, children, code_map, token_seq) -> SourceNode: 
+    def create_node_tree(self, node, start_index, end_index, children, code, code_map, token_seq) -> SourceNode: 
         buffer = []
 
-        current_start_index = code_map[node.extent.start.line][node.extent.start.column]
-        current_end_index = code_map[node.extent.end.line][node.extent.end.column]
-        previous_end_index = current_start_index
+        previous_end_index = start_index
 
         for child in children:
-            child_start_index = code_map[child.extent.start.line][child.extent.start.column]
-            child_end_index = code_map[child.extent.end.line][child.extent.end.column]
+            # Max(...) handles overlapping siblings
+            child_start_index = max(code_map[child.extent.start.line][child.extent.start.column], previous_end_index)
+            child_end_index = max(code_map[child.extent.end.line][child.extent.end.column], start_index)
 
             # Adding any source parts preceding child as parent parts
             if child_start_index - previous_end_index > 0: 
                 buffer.extend([t for t in token_seq if previous_end_index <= t.start_index and t.end_index <= child_start_index])
             
             # Adding any sources parts within child as child node
-            buffer.append(self.create_node_tree(child, child.get_children(), code_map, token_seq))
+            buffer.append(self.create_node_tree(child, child_start_index, child_end_index, list(child.get_children()), code, code_map, token_seq))
             
             previous_end_index = child_end_index
         
         #Adding any source parts after last child as parent parts
-        if current_end_index - previous_end_index > 0: 
-            buffer.extend([t for t in token_seq if previous_end_index <= t.start_index and t.end_index <= current_end_index])
-        
+        if end_index - previous_end_index > 0: 
+            buffer.extend([t for t in token_seq if previous_end_index <= t.start_index and t.end_index <= end_index])
+
         return SourceNode.create(node, buffer)
 
     def attach_node_parents(self, node: SourceNode):

@@ -1,6 +1,7 @@
 from copy import copy
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses
 from modification_nodes import ModificationNode
+from assertions import assert_type_or_none
 from source_nodes import SourceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
@@ -10,6 +11,10 @@ def flatten(l):
 
 class VariableDeclaration: 
     def __init__(self, type: str, name: str, init: str|None = None) -> None:
+        assert_type(type, str)
+        assert_type(name, str)
+        assert_type_or_none(init, str)
+
         self.type = type
         self.name = name
         self.init = init
@@ -34,8 +39,8 @@ class VariableDeclaration:
     
     def get_declaration_part(self) -> str: 
         """Creates *t = 5 style declaration"""
-        type_parts = self.type.split("[")
-        type_name = '*' * (len(type_parts) - 1)
+        type_stars = len(self.type.split("*")) + len(self.type.split("[")) - 2
+        type_name = '*' * type_stars
 
         buffer = []
         buffer.append(type_name)
@@ -46,8 +51,8 @@ class VariableDeclaration:
         return "".join(buffer)
 
     def __eq__(self, __value: object) -> bool:
-        if type(__value) != "VariableDeclaration":
-            return False 
+        if type(__value) != VariableDeclaration:
+            return False
         return self.name == __value.name
 
 # Notify data
@@ -401,14 +406,12 @@ class StmtNotifyReplaceNode(NotifyBaseReplaceNode):
 
         placeholders = []
         if any(self.start_notifies): 
-            start_reference = self.start_notifies[0].get_reference()
-            placeholders.append(ConstantNode(f"notify_0({start_reference})"))
+            placeholders.append(self.get_start_notify())
         
         placeholders.append(CopyNode(node))
 
         if any(self.end_notifies):
-            end_reference = self.end_notifies[0].get_reference()
-            placeholders.append(ConstantNode(f"notify_0({end_reference})"))
+            placeholders.append(self.get_end_notify())
 
         if len(placeholders) > 1: 
             templates = ["{ {0}; }", "{ {0}; {1}; }", "{ {0}; {1}; {2}; }"]
@@ -435,6 +438,9 @@ class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
 # Transforms compound_expr to notify(), temp = compound_expr, notify(), temp
 class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
     def __init__(self, target: SourceNode, children: list[NotifyBaseReplaceNode]) -> None:
+        assert_type(target, SourceNode)
+        #assert_list_type(children, NotifyBaseReplaceNode)
+
         super().__init__(target)
         self.children = children
 

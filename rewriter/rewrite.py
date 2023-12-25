@@ -8,7 +8,7 @@ from ast_visitors import AstPrinter
 from pathlib import Path
 from modification_nodes import ModificationTreePrinter
 from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl
 
 def read_file(file_name): 
     f = open(file_name)
@@ -57,9 +57,13 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     print('\nGenerating source tree...')
     source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
     SourceTreePrinter().print(source_root)
+    if f"{source_root}" != f"{source_content}":
+        raise Exception(f"Failed to generate source tree. Generated tree: \n {source_root}")
 
     print('\nGenerating modification tree...')
     partial_visitors = [
+        PartialTreeVisitor_StructDecl(),
+        PartialTreeVisitor_FunctionDecl_Prototype(),
         PartialTreeVisitor_FunctionDecl(),
         PartialTreeVisitor_BreakStmt(),
         PartialTreeVisitor_ReturnStmt(),
@@ -67,10 +71,11 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
         PartialTreeVisitor_VarDecl_Unitialized(),
         PartialTreeVisitor_CallExpr(),
         PartialTreeVisitor_ConditionalOperator(),
+        PartialTreeVisitor_BinaryOperator_Atomic(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
+        PartialTreeVisitor_UnaryOperator_Atomic(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
-        PartialTreeVisitor_UnaryOperator_Address(),
         PartialTreeVisitor_UnaryOperator(),
         PartialTreeVisitor_DeclRefExpr(),
         PartialTreeVisitor_GenericLiteral()

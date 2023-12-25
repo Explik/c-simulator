@@ -172,7 +172,7 @@ class CompositeTreeVisitor(SourceTreeVisitor):
         source_node_modifications_filtered = [m for m in source_node_modifications if m is not None]
 
         if len(source_node_modifications_filtered) == 0: 
-            raise Exception(f"Unsupported node \"{source_node}\" ({SourceNodeResolver.get_type(source_node)})")
+            return None
         elif len(source_node_modifications_filtered) == 1: 
             return source_node_modifications_filtered[0]
         else: 
@@ -243,26 +243,6 @@ class PartialTreeVisitor_UnaryOperator(PartialTreeVisitor):
         
         return buffer
 
-class PartialTreeVisitor_UnaryOperator_Address(PartialTreeVisitor_UnaryOperator):
-    def can_visit(self, source_node: SourceNode):
-        if (SourceNodeResolver.get_type(source_node) != "UnaryOperator"):
-            return False
-        
-        operator = SourceNodeResolver.get_unary_operator(source_node) 
-        return operator == "&"
-    
-    def visit(self, source_node: SourceNode):
-        notify_list = self.register([
-            EvalNotifyData(source_node)
-        ])
-        buffer = CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
-
-        if source_node.is_statement():
-            stat_notify = self.register(StatNotifyData(source_node))
-            buffer = buffer.with_start_notify(stat_notify)
-        
-        return buffer
-
 class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperator):
     def can_visit(self, source_node: SourceNode):
         if (SourceNodeResolver.get_type(source_node) != "UnaryOperator"):
@@ -277,6 +257,29 @@ class PartialTreeVisitor_UnaryOperator_Assignment(PartialTreeVisitor_UnaryOperat
             AssignNotifyData(source_node, source_node.get_children()[0])
         ])
         buffer = CompoundExprNotifyReplaceNode(source_node, []).with_end_notifies(notify_list)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
+
+class PartialTreeVisitor_UnaryOperator_Atomic(PartialTreeVisitor_UnaryOperator):
+    def can_visit(self, source_node: SourceNode):
+        node_type = SourceNodeResolver.get_type(source_node)
+
+        if node_type == "UnaryOperator":
+            return SourceNodeResolver.get_unary_operator(source_node) in ["*", "&"]
+        elif node_type == "CxxUnaryExpr":
+            return f"{source_node.get_tokens()[0]}" in ["sizeof"]
+        else: 
+            return False
+
+    def visit(self, source_node: SourceNode):
+        notify_list = self.register([
+            EvalNotifyData(source_node),
+        ])
+        buffer = ExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
 
         if source_node.is_statement():
             stat_notify = self.register(StatNotifyData(source_node))
@@ -321,6 +324,26 @@ class PartialTreeVisitor_BinaryOperator_Assignment(PartialTreeVisitor):
         
         return buffer
 
+class PartialTreeVisitor_BinaryOperator_Atomic(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        if SourceNodeResolver.get_type(source_node) not in ["BinaryOperator"]:
+            return False 
+        
+        binary_operator = SourceNodeResolver.get_binary_operator(source_node)
+        return binary_operator in ["->"]
+    
+    def visit(self, source_node: SourceNode):
+        notify_list = self.register([
+            EvalNotifyData(source_node),
+        ])
+        buffer = ExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
+
+        if source_node.is_statement():
+            stat_notify = self.register(StatNotifyData(source_node))
+            buffer = buffer.with_start_notify(stat_notify)
+        
+        return buffer
+
 class PartialTreeVisitor_ConditionalOperator(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "ConditionalOperator"
@@ -335,19 +358,20 @@ class PartialTreeVisitor_ConditionalOperator(PartialTreeVisitor):
             buffer = buffer.with_start_notify(stat_notify)
         
         return buffer
-
+    
 class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
         return SourceNodeResolver.get_type(source_node) == "CallExpr"
     
     def visit(self, source_node: SourceNode):
         child_results = [self.callback(c) for c in source_node.get_children()[1:]]
+        filtered_child_result = [c for c in child_results if c is not None]
 
         if source_node.node.type.spelling != "void":
             eval_notify = self.register(EvalNotifyData(source_node))
-            buffer = CompoundExprNotifyReplaceNode(source_node, child_results).with_end_notify(eval_notify)
+            buffer = CompoundExprNotifyReplaceNode(source_node, filtered_child_result).with_end_notify(eval_notify)
         else: 
-            buffer = CompoundVoidNotifyReplaceNode(source_node, child_results)
+            buffer = CompoundVoidNotifyReplaceNode(source_node, filtered_child_result)
 
         if source_node.is_statement():
             stat_notify = self.register(StatNotifyData(source_node))
@@ -406,7 +430,10 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
             return False
         
         children = source_node.get_children()
-        return any(children) and SourceNodeResolver.get_type(children[-1]) == "CompoundStmt"
+        if not any(children) or not SourceNodeResolver.get_type(children[-1]) == "CompoundStmt":
+            return False
+
+        return any(children[0].get_children()) 
 
     def visit(self, source_node: SourceNode):
         children = source_node.get_children()
@@ -421,14 +448,19 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         notifies = self.deregister()
         variables = flatten([n.get_block_variables() for n in notifies])
         unique_variables = []
+        unique_types = []
         for variable in variables:
             if variable not in unique_variables: 
                 unique_variables.append(variable)
-
-        type_notifies = self.register([TypeNotifyData(n[0], f"type{i}") for i,n in enumerate(unique_variables) if not SourceTypeResolver.is_builtin_type(n.type)])
-        type_variables = flatten([n.get_variables() for n in type_notifies])
-        declarations = [n.get_declaration() for n in unique_variables + type_variables]
+            if not SourceTypeResolver.is_builtin_type(variable.type) and variable.type not in unique_types: 
+                unique_types.append(variable.type)
+        
+        type_notifies = self.register([TypeNotifyData(n, f"type{i}") for i,n in enumerate(unique_types)])
+        self.deregister()
+        type_variables = flatten([n.get_block_variables() for n in type_notifies])
+        declarations = [n.get_declaration() for n in unique_variables] +  [n.get_declaration() for n in type_variables]
         declaration_block = ConstantNode("\n    " + "\n    ".join(declarations))
+
         filtered_result = [filtered_result[0].with_start_notifies(type_notifies)] + filtered_result[1:]
         filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
 
@@ -449,3 +481,21 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         temp = self.variables
         self.variables = []
         return temp
+    
+class PartialTreeVisitor_FunctionDecl_Prototype: 
+    def can_visit(self, source_node: SourceNode):
+        if (SourceNodeResolver.get_type(source_node) != "FunctionDecl"):
+            return False
+        
+        return not any(source_node.get_children())
+
+    def visit(self, source_node: SourceNode):
+        return None
+
+class PartialTreeVisitor_StructDecl(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "StructDecl"
+
+    def visit(self, source_node: SourceNode):
+        return None
+    
