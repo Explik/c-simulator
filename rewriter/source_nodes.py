@@ -1,6 +1,9 @@
 import re
 from assertions import assert_type, assert_list_type
 
+def get_token_kind(token: 'SourceToken'):
+    return token.token.kind.name.lower()
+
 class SourceText: 
     def __init__(self) -> None:
         self.start_index: int|None = None
@@ -276,6 +279,11 @@ class SourceNodeResolver:
         assert len(node.get_children()) == 2
         return node.get_tokens()[0].token.spelling
 
+    @staticmethod
+    def has_token_kind(node: SourceNode, token_kind) -> bool: 
+        # Only checks node and not children 
+        return any(t for t in node.get_tokens() if get_token_kind(t) == token_kind)
+
 class SourceTypeResolver: 
     """Utility method for SourceNode information"""
     @staticmethod 
@@ -299,8 +307,9 @@ class SourceTypeResolver:
         ])
     
     def is_builtin_type(name):
-        base_name = name.replace("*", "").strip()
-        return any(t for t in SourceTypeResolver.get_builtin_types() if t.name == base_name)
+        base_name_1 = name.replace("*", "").strip()
+        base_name_2 = base_name_1.split("[")[0]
+        return any(t for t in SourceTypeResolver.get_builtin_types() if t.name == base_name_2)
 
 class SourceTreeCreator: 
     def __init__(self, filter = None) -> None:

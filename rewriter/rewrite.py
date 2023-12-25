@@ -131,7 +131,7 @@ def generate_output_files(script_file, input_file, output_directory, run_dry_run
     if run_dry_run:
         dry_run_js_output = os.path.join(output_directory, 'dryrun.js')
         dry_run_wasm_output = os.path.join(output_directory, 'dryrun.wasm')
-        dry_run_command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" -o %s' % (input_file, dry_run_js_output)
+        dry_run_command = 'emcc \"%s\" -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" -o \"%s\"' % (input_file, dry_run_js_output)
         (dry_run_result, dry_run_console) = run_command(dry_run_command)
         if (os.path.exists(dry_run_js_output)): 
             os.remove(dry_run_js_output)
@@ -151,7 +151,7 @@ def generate_output_files(script_file, input_file, output_directory, run_dry_run
     output_c_path = os.path.join(output_directory, 'output.js')
     library_path = get_path_with_name(script_file, 'library.js')
     args = (temp_c_path, temp_js_path, library_path, output_c_path)
-    command = 'emcc %s -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js %s --js-library %s -o %s' % args
+    command = 'emcc \"%s\" -s WASM=1 -s "EXPORTED_FUNCTIONS=[\'_main\']" -s "NO_EXIT_RUNTIME=0" --pre-js \"%s\" --js-library \"%s\" -o \"%s\"' % args
     (command_result, command_console) = run_command(command)
     
     if command_result != 0: 

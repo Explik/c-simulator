@@ -2,7 +2,7 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, NestedExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
 from source_nodes import SourceNode, SourceNodeResolver, SourceTypeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -358,25 +358,26 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
 # Transforms int a = 0, b = 1; to int a 
 class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl" and any(c for c in source_node.get_children() if SourceNodeResolver.get_type(c) != "TypeRef")
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" in [f"{t}" for t in source_node.get_tokens()]
 
     def visit(self, source_node: SourceNode):
-        stat_notify = self.register(StatNotifyData(source_node.parent))
-        decl_notify = self.register(DeclNotifyData(source_node))
-        child_result = self.callback(source_node.get_children()[0])
-        return child_result.with_start_notify(stat_notify).with_end_notify(decl_notify)
+        notify_list = self.register([
+            StatNotifyData(source_node.parent),
+            DeclNotifyData(source_node)
+        ])
+        return NestedExprNotifyReplaceNode(source_node, ConstantNode(source_node.node.spelling)).with_end_notifies(notify_list)
 
-# Transforms int a, b; to int a = (temp, notify(), temp), b = (temp, notify(), temp)
+# Transforms int a, b; to int a, temp1 = (notify(), a), b, (notify(), b)
 class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl" and not(any(source_node.get_children()))
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" not in [f"{t}" for t in source_node.get_tokens()]
     
     def visit(self, source_node: SourceNode):
         notify_list = self.register([
             StatNotifyData(source_node.parent),
             DeclNotifyData(source_node)
         ])
-        return PreExprNotifyReplaceNode(source_node).with_end_notifies(notify_list)
+        return NestedExprNotifyReplaceNode(source_node, ConstantNode(source_node.node.spelling)).with_end_notifies(notify_list)
 
 # Transforms break; to { notify(); break; }
 class PartialTreeVisitor_BreakStmt(PartialTreeVisitor):
@@ -418,15 +419,15 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         filtered_result =  [filtered_result[0].with_start_notifies(notify_list)] + filtered_result[1:]
 
         notifies = self.deregister()
-        variables = flatten([n.get_variables() for n in notifies])
+        variables = flatten([n.get_block_variables() for n in notifies])
         unique_variables = []
         for variable in variables:
-            if not any(v for v in unique_variables if v[1] == variables[1]):
+            if variable not in unique_variables: 
                 unique_variables.append(variable)
 
-        type_notifies = self.register([TypeNotifyData(n[0], f"type{i}") for i,n in enumerate(unique_variables) if not SourceTypeResolver.is_builtin_type(n[0])])
+        type_notifies = self.register([TypeNotifyData(n[0], f"type{i}") for i,n in enumerate(unique_variables) if not SourceTypeResolver.is_builtin_type(n.type)])
         type_variables = flatten([n.get_variables() for n in type_notifies])
-        declarations = [(f"{n[0]} {n[1]} = {n[2]};" if len(n) == 3 else f"{n[0]} {n[1]};") for n in unique_variables + type_variables]
+        declarations = [n.get_declaration() for n in unique_variables + type_variables]
         declaration_block = ConstantNode("\n    " + "\n    ".join(declarations))
         filtered_result = [filtered_result[0].with_start_notifies(type_notifies)] + filtered_result[1:]
         filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
