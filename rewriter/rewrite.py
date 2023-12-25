@@ -6,7 +6,7 @@ import subprocess
 import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
-from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter
+from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
 from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Address, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor
 
 def read_file(file_name): 
@@ -65,7 +65,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
         PartialTreeVisitor_VarDecl_Initialized(),
         PartialTreeVisitor_VarDecl_Unitialized(),
         PartialTreeVisitor_CallExpr(),
-        #PartialTreeVisitor_ConditionalOperator(),
+        PartialTreeVisitor_ConditionalOperator(),
         PartialTreeVisitor_BinaryOperator_Assignment(),
         PartialTreeVisitor_BinaryOperator(),
         PartialTreeVisitor_UnaryOperator_Assignment(),
@@ -103,13 +103,17 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
 
     notifications_json = [n.serialize(source_content) for n in composite_visitor.get_notifies()]
     notification_json = "[\n    " + ",\n    ".join(notifications_json) +"\n  ]"
-    
+
+    types_json = [t.serialize() for t in SourceTypeResolver.get_builtin_types()]
+    type_json = "[\n    " + ",\n    ".join(types_json) +"\n  ]"
+
     code_json = json.dumps(source_content)
     
     js_target_content = read_file(prejs_path)
     js_target_content = js_target_content.replace("{code}", code_json) 
     js_target_content = js_target_content.replace("{statements}", statement_json)
     js_target_content = js_target_content.replace("{notifications}", notification_json)
+    js_target_content = js_target_content.replace("{types}", type_json)
     write_file(js_target_path, js_target_content)
 
 def generate_output_files(script_file, input_file, output_directory, run_dry_run = True): 

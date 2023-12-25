@@ -2,8 +2,8 @@
 # Based on pycparser's NodeVisitor
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertIntializerNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
-from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode
-from source_nodes import SourceNode, SourceNodeResolver
+from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, PreExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
+from source_nodes import SourceNode, SourceNodeResolver, SourceTypeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
@@ -417,11 +417,17 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         filtered_result =  [filtered_result[0].with_start_notifies(notify_list)] + filtered_result[1:]
 
         notifies = self.deregister()
-        filtered_notifies = [n for n in notifies if type(n) in [DeclNotifyData, EvalNotifyData, ReturnNotifyData]]
-        identifiers = list(set([n.eval_identifier for n in filtered_notifies]))
-        unique_notifies = [next(n for n in filtered_notifies if n.eval_identifier == i) for i in identifiers]
-        declarations = [f"{n.type} {n.eval_identifier};" for n in unique_notifies]
+        variables = flatten([n.get_variables() for n in notifies])
+        unique_variables = []
+        for variable in variables:
+            if not any(v for v in unique_variables if v[1] == variables[1]):
+                unique_variables.append(variable)
+
+        type_notifies = self.register([TypeNotifyData(n[0], f"type{i}") for i,n in enumerate(unique_variables) if not SourceTypeResolver.is_builtin_type(n[0])])
+        type_variables = flatten([n.get_variables() for n in type_notifies])
+        declarations = [(f"{n[0]} {n[1]} = {n[2]};" if len(n) == 3 else f"{n[0]} {n[1]};") for n in unique_variables + type_variables]
         declaration_block = ConstantNode("\n    " + "\n    ".join(declarations))
+        filtered_result = [filtered_result[0].with_start_notifies(type_notifies)] + filtered_result[1:]
         filtered_result.append(InsertAfterTokenKindNode(function_body_node, 'punctuation', declaration_block))
 
         return CompoundReplaceNode(function_body_node, filtered_result)

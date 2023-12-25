@@ -1,5 +1,6 @@
 from copy import copy
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertModificationNode, ReplaceModificationNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node_with_parentheses
+from source_nodes import SourceNode
 from source_nodes import SourceNode, SourceNodeResolver
 
 # See https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -28,10 +29,13 @@ class BaseNotify():
     
     def set_notify_id(self, id) -> str|None: 
         self.notify_id = id
-        
-    def get_identifiers(self) -> list[str]: 
+
+    def get_variables(self) -> list[tuple]: 
         return []
 
+    def get_notify_parameters(self) -> list[str]: 
+        return []
+    
     def serialize(self, code):
         buffer = dict()
 
@@ -42,14 +46,15 @@ class BaseNotify():
         if self.action is not None: 
             buffer["action"] = f"\"{self.action}\""
         else: raise Exception("Property action is None")
-
-        if self.node_id is not None: 
-            buffer["nodeId"] = f"{self.node_id}"
-        else: raise Exception("Property node_id is None")
         
-        if self.notify_id is not None: 
-            buffer["notifyId"] = f"{self.notify_id}" if self.notify_id is not None else "undefined"
-        else: raise Exception("Property notify_id is None")
+        #if self.notify_id is not None: 
+        buffer["notifyId"] = f"{self.notify_id}" if self.notify_id is not None else "undefined"
+        #else: raise Exception("Property notify_id is None")
+
+        if self.action not in ["type"]:
+            if self.node_id is not None: 
+                buffer["nodeId"] = f"{self.node_id}"
+            else: raise Exception("Property node_id is None")
 
         if (self.action in ["assign", "eval", "decl", "return", "invocation", "par"]):
             if self.type is not None:
@@ -62,7 +67,7 @@ class BaseNotify():
                 buffer["scope"] = "{ \"startIndex\": " + f"{start_index}" + ", \"endIndex\": " + f"{end_index}" +  " }"
             else: raise Exception("Property scope is None")
 
-        if (self.action in ["assign", "decl", "invocation", "par"]):
+        if (self.action in ["assign", "decl", "invocation", "par", "type"]):
             if self.identifier is not None: 
                 buffer["identifier"] = f"\"{self.identifier}\""
             else: raise Exception("Property identifier is None")
@@ -84,8 +89,11 @@ class AssignNotifyData(BaseNotify):
         self.identifier = f"{identifier_node}"
         self.type = node_type
 
-    def get_identifiers(self) -> list[str]:
-        return [self.identifier]
+    def get_variables(self) -> list[tuple]: 
+        return [(self.type, self.identifier)]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.identifier]
 
 class DeclNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
@@ -99,8 +107,11 @@ class DeclNotifyData(BaseNotify):
         self.scope = SourceNodeResolver.get_scope(node)
         self.eval_identifier = f"temp{node.id}"
 
-    def get_identifiers(self) -> list[str]:
-        return [self.eval_identifier]
+    def get_variables(self) -> list[tuple]: 
+        return [(self.type, self.eval_identifier)]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.eval_identifier]
 
 class EvalNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
@@ -112,8 +123,11 @@ class EvalNotifyData(BaseNotify):
         self.type = node_type
         self.eval_identifier = f"temp{node.id}"
 
-    def get_identifiers(self) -> list[str]:
-        return [self.eval_identifier]
+    def get_variables(self) -> list[tuple]: 
+        return [(self.type, self.eval_identifier)]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.eval_identifier]
 
 class InvocationNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
@@ -136,8 +150,11 @@ class ParameterNotifyData(BaseNotify):
         self.identifier = node.node.spelling
         self.scope = SourceNodeResolver.get_scope(node)
 
-    def get_identifiers(self) -> list[str]:
-        return [self.identifier]
+    def get_variables(self) -> list[tuple]: 
+        return [(self.type, self.eval_identifier)]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.identifier]
 
 class ReturnNotifyData(BaseNotify):
     def __init__(self, node: SourceNode) -> None:
@@ -149,14 +166,31 @@ class ReturnNotifyData(BaseNotify):
         self.type = node_type
         self.eval_identifier = f"temp{node.id}"
 
-    def get_identifiers(self) -> list[str]:
-        return [self.eval_identifier]
+    def get_variables(self) -> list[tuple]: 
+        return [(self.type, self.eval_identifier)]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.eval_identifier]
 
 class StatNotifyData(BaseNotify): 
     def __init__(self, node: SourceNode) -> None:
         super().__init__(node)
         self.action = "stat"
         self.statement_id = node.id
+
+class TypeNotifyData(BaseNotify):
+    def __init__(self, type_identifier: str, temp_identifier) -> None:
+        super().__init__(None)
+        self.action = "type"
+        self.identifier = type_identifier
+        self.eval_identifier = temp_identifier
+
+    def get_variables(self) -> list[tuple]: 
+        return [("size_t", self.eval_identifier, "sizeof(" + self.identifier + ")")]
+
+    def get_notify_parameters(self) -> list[str]:
+        return ["&" + self.eval_identifier]
+
 
 # Notify nodes
 class NotifyBaseReplaceNode(ReplaceModificationNode):
@@ -176,8 +210,8 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
 
         # Generate statement expression
         placeholders = []
-        start_identifiers = flatten([n.get_identifiers() for n in self.start_notifies])
-        end_identifiers = flatten([n.get_identifiers() for n in self.end_notifies])
+        start_identifiers = flatten([n.get_notify_parameters() for n in self.start_notifies])
+        end_identifiers = flatten([n.get_notify_parameters() for n in self.end_notifies])
 
         if before_node is not None: 
             placeholders.append(before_node)
@@ -185,9 +219,8 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         if any(self.start_notifies): 
             start_reference = self.start_notifies[0].notify_id
             if start_reference is None: raise Exception(f"notify_id is None on start_notifies")
-            list_1 = [f"&{i}" for i in start_identifiers]
-            list_2 = [f"{start_reference}"] + list_1
-            placeholders.append(ConstantNode(f"notify_{len(start_identifiers)}({', '.join(list_2)})"))
+            parameter_list = [f"{start_reference}"] + start_identifiers
+            placeholders.append(ConstantNode(f"notify_{len(start_identifiers)}({', '.join(parameter_list)})"))
         
         if middle_node is not None: 
             placeholders.append(middle_node)
@@ -195,9 +228,8 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         if any(self.end_notifies):
             end_reference = self.end_notifies[0].notify_id
             if end_reference is None: raise Exception(f"notify_id is None on end_notifies")
-            list_1 = [f"&{i}" for i in end_identifiers]
-            list_2 = [f"{end_reference}"] + list_1
-            placeholders.append(ConstantNode(f"notify_{len(end_identifiers)}({', '.join(list_2)})"))
+            parameter_list = [f"{end_reference}"] + end_identifiers
+            placeholders.append(ConstantNode(f"notify_{len(end_identifiers)}({', '.join(parameter_list)})"))
         
         if end_node is not None:  
             placeholders.append(end_node)

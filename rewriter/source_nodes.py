@@ -217,6 +217,36 @@ class SourceNode(SourceText):
         return new_node
 
 
+class SourceType: 
+    def __init__(self) -> None:
+        self.type: str|None = None
+        self.name: str|None = None
+        self.byte_size: int|None = None 
+
+    def serialize(self): 
+        return "{ \"type\": \"" + self.type + "\", \"name\": \"" + self.name + "\", \"byteSize\": " + f"{self.byte_size}" + " }"
+
+    @staticmethod
+    def create(type, name, byte_size):
+        instance = SourceType()
+        instance.type = type
+        instance.name = name
+        instance.byte_size = byte_size
+        return instance
+
+    @staticmethod
+    def create_uint(name, byte_size):
+        return SourceType.create("uint", name, byte_size)
+    
+    @staticmethod
+    def create_int(name, byte_size):
+        return SourceType.create("int", name, byte_size)
+    
+    @staticmethod
+    def create_float(name, byte_size):
+        return SourceType.create("float", name, byte_size)
+
+
 class SourceNodeResolver: 
     """Utility methods for SourceNode information"""
     
@@ -246,6 +276,31 @@ class SourceNodeResolver:
         assert len(node.get_children()) == 2
         return node.get_tokens()[0].token.spelling
 
+class SourceTypeResolver: 
+    """Utility method for SourceNode information"""
+    @staticmethod 
+    def get_builtin_types() -> list[SourceType]: 
+        return ([
+            # Integer types 
+            SourceType.create_int("char", 1),
+            SourceType.create_int("short", 2),
+            SourceType.create_int("int", 4),
+            SourceType.create_int("long", 4),
+            SourceType.create_int("long int", 4),
+
+            # Unsigned integer types
+            SourceType.create_uint("size_t", 4),
+            SourceType.create_uint("uint", 4),
+
+            # Floating point types
+            SourceType.create_float("float", 4),
+            SourceType.create_float("double", 8),
+            SourceType.create_float("long double", 8)
+        ])
+    
+    def is_builtin_type(name):
+        base_name = name.replace("*", "").strip()
+        return any(t for t in SourceTypeResolver.get_builtin_types() if t.name == base_name)
 
 class SourceTreeCreator: 
     def __init__(self, filter = None) -> None:
@@ -333,6 +388,7 @@ class SourceTreeCreator:
         for child in node.get_children(): 
             child.parent = node
             self.attach_node_parents(child)
+
 
 class SourceTreePrinter:
     def print(self, node: SourceNode, level = 0):

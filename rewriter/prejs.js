@@ -16,13 +16,20 @@ Module.notify = function(id, dataPointers) {
     var notifications = Module.simulatorNotifications.filter(n => n.notifyId == id); 
     for (var notification of notifications) {
         if (["assign", "eval", "decl", "par"].includes(notification.action)) {
-            var dataType = notification.dataType;
-            var dataTypeByteSize = Module.getByteSize(dataType);
-            var dataValue = Module.getHeap(dataType)[dataPointers[i] / dataTypeByteSize];
-            var snapshot = dataType.endsWith("*") ? Module.captureSnapshot(dataValue, dataType) : undefined;
+            var dataTypeName = notification.dataType;
+            var dataType = Module.simulatorTypes.find(t => t.name == dataTypeName);
+            var dataValue = Module.captureValue(dataPointers[i], dataType);
+            
+            var snapshot = dataTypeName.endsWith("*") ? Module.captureSnapshot(dataValue, dataTypeName) : undefined;
 
             steps.push({ ...notification, dataValue, snapshot });
             i++;
+        }
+        else if (notification.action === "type") {
+            var dataType = Module.simulatorTypes.find(t => t.name == "size_t");
+            var dataValue = Module.captureValue(dataPointers[i], dataType);
+
+            Module.simulatorTypes.push({ type: "int", name: notification.identifier, byteSize: dataValue });
         }
         else steps.push({ ...notification }); 
     }
@@ -34,6 +41,28 @@ Module.notify = function(id, dataPointers) {
         Module.simulatorSteps.push(step);
         console.log(step);
     }
+}
+
+Module.captureValue = function(dataPointer, dataType) {
+    var heap;
+    switch(dataType.type) {
+        case "int": 
+            heap = "HEAP" + (dataType.byteSize * 8); 
+            break;
+        case "uint":
+            heap = "HEAPU" + (dataType.byteSize * 8);
+            break;
+        case "float":
+            heap = "HEAPF" + (dataType.byteSize * 8);
+            break;
+        default:
+            throw new Error("Unsupported data type " + dataType.type + " for " + dataType.name);
+    }
+
+    if (!Module[heap])
+        throw new Error("Unrecognized heap " + heap + " for " + dataType.name);
+
+    return Module[heap][dataPointer / dataType.byteSize];
 }
 
 Module.captureSnapshot = function captureHeapSnapshot(pointer, pointerType) {
@@ -67,12 +96,14 @@ Module.getByteSize = function(dataType) {
             return 2;
         case 'int':
         case 'long':
+        case 'long int':
         case 'float':
             return 4;
         case 'double':
+        case 'long double':
             return 8;
         default:
-            return null;
+            throw new Error("Unsupported datatype " + dataType);
     }
 }
 
@@ -87,10 +118,12 @@ Module.getHeap = function(dataType) {
             return Module.HEAP16;
         case 'int':
         case 'long':
+        case 'long int':
             return Module.HEAP32;
         case 'float':
             return Module.HEAPF32;
         case 'double':
+        case 'long double':
             return Module.HEAPF64;
         default:
             return null;
@@ -102,4 +135,5 @@ Module.preRun.push(function() {
   Module.simulatorCode = {code};
   Module.simulatorNodes = {statements};
   Module.simulatorNotifications = {notifications};
+  Module.simulatorTypes = {types};
 });
