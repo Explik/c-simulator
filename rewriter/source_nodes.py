@@ -277,14 +277,17 @@ class SourceNodeResolver:
     @staticmethod
     def get_unary_operator(node: SourceNode) -> str|None:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
-        assert len(node.get_children()) == 1
+        if node.get_children() != 1:
+            return None
+        
         tokens = node.get_tokens()
         return tokens[0].token.spelling if any(tokens) else None
 
     @staticmethod
     def get_binary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
-        assert len(node.get_children()) == 2
+        if len(node.get_children()) != 2:
+            return None
         tokens = node.get_tokens()
         return tokens[0].token.spelling if any(tokens) else None
     

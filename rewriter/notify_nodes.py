@@ -299,7 +299,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
 
     def get_start_notify(self) -> ConstantNode:
         if not any(self.start_notifies): 
-            raise Exception()
+            raise Exception("Missing start_notifies")
         
         start_reference = self.start_notifies[0].notify_id
         start_identifiers = flatten([n.get_notify_parameters() for n in self.start_notifies])
@@ -309,7 +309,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         
     def get_end_notify(self) -> ConstantNode: 
         if not any(self.end_notifies):
-            raise Exception()
+            raise Exception("Missing end_notifies")
         
         end_reference = self.end_notifies[0].notify_id
         end_identifiers = flatten([n.get_notify_parameters() for n in self.end_notifies])
