@@ -38,7 +38,7 @@ class SourceToken(SourceText):
         if not(isinstance(node, SourceToken)): 
             return False
         return self.id == node.id
-
+    
     @staticmethod
     def create(start_index, end_index, value, token):
         SourceToken.counter += 1
@@ -59,6 +59,10 @@ class SourceToken(SourceText):
         instance.value = source.value
         instance.token = source.token
         return instance
+    
+    @staticmethod
+    def reset():
+        SourceToken.counter = 0
 
 
 class SourceNode(SourceText): 
@@ -219,6 +223,9 @@ class SourceNode(SourceText):
         new_node.values = new_values
         return new_node
 
+    @staticmethod
+    def reset():
+        SourceNode.counter = 0
 
 class SourceType: 
     def __init__(self) -> None:
