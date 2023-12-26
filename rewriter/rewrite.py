@@ -8,7 +8,7 @@ from ast_visitors import AstPrinter
 from pathlib import Path
 from modification_nodes import ModificationTreePrinter
 from source_nodes import SourceNode, SourceToken, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CaseStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl
 
 def read_file(file_name): 
     f = open(file_name)
@@ -69,6 +69,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
         PartialTreeVisitor_StructDecl(),
         PartialTreeVisitor_FunctionDecl_Prototype(),
         PartialTreeVisitor_FunctionDecl(),
+        PartialTreeVisitor_CaseStmt(),
         PartialTreeVisitor_BreakStmt(),
         PartialTreeVisitor_ReturnStmt(),
         PartialTreeVisitor_VarDecl_Initialized(),

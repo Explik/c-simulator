@@ -403,6 +403,15 @@ class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
         ])
         return NestedExprNotifyReplaceNode(source_node, ConstantNode(source_node.node.spelling)).with_end_notifies(notify_list)
 
+# Transforms case 3: to case 3: 
+class PartialTreeVisitor_CaseStmt(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "CaseStmt" 
+    
+    def visit(self, source_node: SourceNode):
+        child_results = [self.callback(c) for c in source_node.get_children()[1:]]
+        return CompoundExprNotifyReplaceNode(source_node, child_results)
+
 # Transforms break; to { notify(); break; }
 class PartialTreeVisitor_BreakStmt(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
