@@ -35,7 +35,7 @@
  * @typedef SimulationVariable
  * @property {string} dataType
  * @property {string} dataValue
- * @property {SourceRange} scope
+ * @property {SourceRange|undefined} scope - undefined meaning global scope
  */
 
 
@@ -59,6 +59,8 @@ var groupBy = function(xs, key) {
 
 // == Utility functions ==
 export function isSubrange(range, subrange) {
+
+
     return subrange.startIndex >= range.startIndex && subrange.endIndex <= range.endIndex;
 }
 
@@ -588,5 +590,5 @@ export function getCurrentScopeVariables(steps) {
     const currentStatement = getCurrentStatementStep(steps);
     const currentVariables = getCurrentVariables(steps);
 
-    return currentVariables.filter(v => isSubrange(v.scope, currentStatement.node.range));
+    return currentVariables.filter(v => v.scope === undefined || isSubrange(v.scope, currentStatement.node.range));
 }

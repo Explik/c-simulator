@@ -123,7 +123,8 @@ class BaseNotify():
             if self.scope is not None: 
                 (start_index, end_index) = self.scope
                 buffer["scope"] = "{ \"startIndex\": " + f"{start_index}" + ", \"endIndex\": " + f"{end_index}" +  " }"
-            else: raise Exception("Property scope is None")
+            else: 
+                buffer["scope"] = "undefined"
 
         if (self.action in ["assign", "decl", "invocation", "par", "type"]):
             if self.identifier is not None: 
