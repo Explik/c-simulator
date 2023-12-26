@@ -381,18 +381,18 @@ class SourceTreeCreator:
         return buffer
 
     def create_node_tree(self, node, start_index, end_index, children, code, code_map, token_seq) -> SourceNode: 
-        # Ordering children as the subsequent alghorithm depends on it
-        ordered_children = list(children)
-        ordered_children.sort(key=lambda n: self.get_node_indicies(n, code_map)[0])
+        sort_by_start_index = lambda n: self.get_node_indicies(n, code_map)[0]
 
         # Remove any children not contained within parent, i.e. not proper children
-        proper_children = [c for c in ordered_children if self.is_overlapped_node(node, c, code_map)]
+        proper_children = [c for c in children if self.is_overlapped_node(node, c, code_map)]
+        proper_children.sort(key=sort_by_start_index, reverse=True)
 
-        # Remove any overlapping children  
+        # Remove any overlapping children
         non_overlapping_children = []
         for child in proper_children:
             non_overlapping_children = [c for c in non_overlapping_children if not self.is_overlapped_node(child, c, code_map)]
             non_overlapping_children.append(child)
+        non_overlapping_children.sort(key=sort_by_start_index)
 
         buffer = []
         previous_end_index = start_index
