@@ -21,21 +21,28 @@ class VariableDeclaration:
 
     def get_declaration(self) -> str:
         """Creates int * t = 5; style declaration"""
-        type_parts = self.type.split("[")
-        type_name = type_parts[0] + '*' * (len(type_parts) - 1)
-        #type_size = type_parts[1].replace("]", "") if len(type_parts) > 1 else None
-        
-        buffer = []
-        
-        buffer.append(type_name + " ")
-        buffer.append(self.name)
-        #if type_size is not None: 
-        #    buffer.append("[" + type_size +"]")
-        if self.init is not None: 
-            buffer.append(" = " + self.init)
-        buffer.append(";")
+        if "(*)(" not in self.type:
+            type_parts = self.type.split("[")
+            type_name = type_parts[0] + '*' * (len(type_parts) - 1)
+            
+            buffer = []
+            buffer.append(type_name + " ")
+            buffer.append(self.name)
+            if self.init is not None: 
+                buffer.append(" = " + self.init)
+            buffer.append(";")
 
-        return "".join(buffer)
+            return "".join(buffer)
+        else: 
+            # Splitting the input string to get the return type and parameters
+            parts = self.type.split("(*")
+            return_type = parts[0].strip()
+            parameters = parts[1].split(")")[0].strip()
+
+            # Forming the new function signature
+            new_signature = f"{return_type} (*{self.name})({parameters})"
+
+            return f"{new_signature} = {self.init};" if self.init is not None else f"{new_signature};"
     
     def get_declaration_part(self) -> str: 
         """Creates *t = 5 style declaration"""
