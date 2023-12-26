@@ -430,10 +430,10 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
             return False
         
         children = source_node.get_children()
-        if not any(children) or not SourceNodeResolver.get_type(children[-1]) == "CompoundStmt":
+        if not any(children) or SourceNodeResolver.get_type(children[-1]) != "CompoundStmt":
             return False
 
-        return any(children[0].get_children()) 
+        return any(children[-1].get_children()) 
 
     def visit(self, source_node: SourceNode):
         children = source_node.get_children()
