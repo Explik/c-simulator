@@ -214,7 +214,7 @@ class PartialTreeVisitor_GenericLiteral(PartialTreeVisitor):
 
 class PartialTreeVisitor_DeclRefExpr(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "DeclRefExpr"
+        return SourceNodeResolver.get_type(source_node) == "DeclRefExpr" and "(" not in source_node.node.type.spelling
 
     def visit(self, source_node: SourceNode):
         eval_notify = self.register(EvalNotifyData(source_node))
@@ -402,6 +402,15 @@ class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
             DeclNotifyData(source_node)
         ])
         return NestedExprNotifyReplaceNode(source_node, ConstantNode(source_node.node.spelling)).with_end_notifies(notify_list)
+
+# Transforms static int a, b; to static int a, b;
+# Static declarations are not supported 
+class PartialTreeVisitor_VarDecl_Static(PartialTreeVisitor):
+    def can_visit(self, source_node: SourceNode):
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" not in [f"{t}" for t in source_node.get_tokens()] and SourceNodeResolver.get_storage_class(source_node) == "static"
+    
+    def visit(self, source_node: SourceNode):
+        return None
 
 # Transforms case 3: to case 3: 
 class PartialTreeVisitor_CaseStmt(PartialTreeVisitor):
