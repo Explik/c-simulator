@@ -450,10 +450,12 @@ class PartialTreeVisitor_FunctionDecl(PartialTreeVisitor):
         unique_variables = []
         unique_types = []
         for variable in variables:
+            variable_type = variable.type.split("[")[0]
+
             if variable not in unique_variables: 
                 unique_variables.append(variable)
-            if not SourceTypeResolver.is_builtin_type(variable.type) and variable.type not in unique_types: 
-                unique_types.append(variable.type)
+            if not SourceTypeResolver.is_builtin_type(variable_type) and variable_type not in unique_types: 
+                unique_types.append(variable_type)
         
         type_notifies = self.register([TypeNotifyData(n, f"type{i}") for i,n in enumerate(unique_types)])
         self.deregister()
