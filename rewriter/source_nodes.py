@@ -286,6 +286,10 @@ class SourceNodeResolver:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
         assert len(node.get_children()) == 2
         return node.get_tokens()[0].token.spelling
+    
+    @staticmethod
+    def get_storage_class(source_node: SourceNode) -> str:
+        return source_node.node.storage_class.name.lower()
 
     @staticmethod
     def has_token_kind(node: SourceNode, token_kind) -> bool: 

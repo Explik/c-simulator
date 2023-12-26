@@ -382,7 +382,7 @@ class PartialTreeVisitor_CallExpr(PartialTreeVisitor):
 # Transforms int a = 0, b = 1; to int a 
 class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" in [f"{t}" for t in source_node.get_tokens()]
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" in [f"{t}" for t in source_node.get_tokens()] and SourceNodeResolver.get_storage_class(source_node) != "static"
 
     def visit(self, source_node: SourceNode):
         notify_list = self.register([
@@ -394,7 +394,7 @@ class PartialTreeVisitor_VarDecl_Initialized(PartialTreeVisitor):
 # Transforms int a, b; to int a, temp1 = (notify(), a), b, (notify(), b)
 class PartialTreeVisitor_VarDecl_Unitialized(PartialTreeVisitor):
     def can_visit(self, source_node: SourceNode):
-        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" not in [f"{t}" for t in source_node.get_tokens()]
+        return SourceNodeResolver.get_type(source_node) == "VarDecl" and "=" not in [f"{t}" for t in source_node.get_tokens()] and SourceNodeResolver.get_storage_class(source_node) != "static"
     
     def visit(self, source_node: SourceNode):
         notify_list = self.register([
