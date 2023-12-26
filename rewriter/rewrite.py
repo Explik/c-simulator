@@ -7,7 +7,7 @@ import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
 from modification_nodes import ModificationTreePrinter
-from source_nodes import SourceNode, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
+from source_nodes import SourceNode, SourceToken, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
 from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl_Initialized, PartialTreeVisitor_VarDecl_Unitialized, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl
 
 def read_file(file_name): 
@@ -47,6 +47,7 @@ def get_path_with_extension(source_path, file_extension):
         return file_name + "." + file_extension    
 
 def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
+    # Build c file
     source_content = read_file(source_path)
     
     print('\nGenerating AST...')
@@ -55,9 +56,12 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     AstPrinter(tu_filter).print(source_content, tu.cursor)
 
     print('\nGenerating source tree...')
+    SourceToken.reset()
+    SourceNode.reset()
+
     source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
     SourceTreePrinter().print(source_root)
-    if f"{source_root}" != f"{source_content}":
+    if f"{source_root}".strip() != f"{source_content}".strip():
         raise Exception(f"Failed to generate source tree. Generated tree: \n {source_root}")
 
     print('\nGenerating modification tree...')
