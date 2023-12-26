@@ -285,7 +285,8 @@ class SourceNodeResolver:
     def get_binary_operator(node: SourceNode) -> str:
         # Based on https://stackoverflow.com/questions/51077903/get-binary-operation-code-with-clang-python-bindings
         assert len(node.get_children()) == 2
-        return node.get_tokens()[0].token.spelling
+        tokens = node.get_tokens()
+        return tokens[0].token.spelling if any(tokens) else None
     
     @staticmethod
     def get_storage_class(source_node: SourceNode) -> str:

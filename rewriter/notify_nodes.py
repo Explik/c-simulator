@@ -22,7 +22,7 @@ class VariableDeclaration:
     def get_declaration(self) -> str:
         """Creates int * t = 5; style declaration"""
         if "(*)(" not in self.type:
-            type_parts = self.type.split("[")
+            type_parts = self.type.replace("const", "").strip().split("[")
             type_name = type_parts[0] + '*' * (len(type_parts) - 1)
             
             buffer = []
@@ -35,7 +35,7 @@ class VariableDeclaration:
             return "".join(buffer)
         else: 
             # Splitting the input string to get the return type and parameters
-            parts = self.type.split("(*")
+            parts = self.type.replace("const", "").strip().split("(*")
             return_type = parts[0].strip()
             parameters = parts[1].split(")")[0].strip()
 
@@ -447,7 +447,7 @@ class CompoundVoidNotifyReplaceNode(NotifyBaseReplaceNode):
 class CompoundExprNotifyReplaceNode(NotifyBaseReplaceNode):
     def __init__(self, target: SourceNode, children: list[NotifyBaseReplaceNode]) -> None:
         assert_type(target, SourceNode)
-        #assert_list_type(children, NotifyBaseReplaceNode)
+        assert_list_type(children, NotifyBaseReplaceNode)
 
         super().__init__(target)
         self.children = children
