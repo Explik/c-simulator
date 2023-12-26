@@ -381,14 +381,23 @@ class SourceTreeCreator:
         return buffer
 
     def create_node_tree(self, node, start_index, end_index, children, code, code_map, token_seq) -> SourceNode: 
+        # Ordering children as the subsequent alghorithm depends on it
+        ordered_children = list(children)
+        ordered_children.sort(key=lambda n: self.get_node_indicies(n, code_map)[0])
+
+        # Remove any children not contained within parent, i.e. not proper children
+        proper_children = [c for c in ordered_children if self.is_overlapped_node(node, c, code_map)]
+
+        # Remove any overlapping children  
+        non_overlapping_children = []
+        for child in proper_children:
+            non_overlapping_children = [c for c in non_overlapping_children if not self.is_overlapped_node(child, c, code_map)]
+            non_overlapping_children.append(child)
+
         buffer = []
-
         previous_end_index = start_index
-
-        for child in children:
-            # Max(...) handles overlapping siblings
-            child_start_index = max(code_map[child.extent.start.line][child.extent.start.column], previous_end_index)
-            child_end_index = max(code_map[child.extent.end.line][child.extent.end.column], start_index)
+        for child in non_overlapping_children:
+            child_start_index, child_end_index = self.get_node_indicies(child, code_map)
 
             # Adding any source parts preceding child as parent parts
             if child_start_index - previous_end_index > 0: 
@@ -404,6 +413,20 @@ class SourceTreeCreator:
             buffer.extend([t for t in token_seq if previous_end_index <= t.start_index and t.end_index <= end_index])
 
         return SourceNode.create(node, buffer)
+    
+    def is_overlapped_node(self, node1, node2, code_map): 
+        """Determines if node2 is contained within node1"""
+        # Unpacking the ranges
+        start1, end1 = self.get_node_indicies(node1, code_map)
+        start2, end2 = self.get_node_indicies(node2, code_map)
+
+        # Check if range2 is within range1
+        return start1 <= start2 and end1 >= end2
+
+    def get_node_indicies(self, node, code_map):
+        start_index = code_map[node.extent.start.line][node.extent.start.column]
+        end_index = code_map[node.extent.end.line][node.extent.end.column]
+        return (start_index, end_index)
 
     def attach_node_parents(self, node: SourceNode):
         for child in node.get_children(): 
