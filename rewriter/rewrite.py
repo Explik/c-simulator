@@ -7,19 +7,9 @@ import clang.cindex
 from ast_visitors import AstPrinter
 from pathlib import Path
 from modification_nodes import ModificationTreePrinter
-from source_nodes import SourceNode, SourceToken, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver
-from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_ArraySubscriptExpr, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BinaryOperator_MemberAssignment, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CaseStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_CstyleCastExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_MemberRefExpr, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl, PartialTreeVisitor_VarDecl_Static, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl
-
-def read_file(file_name): 
-    f = open(file_name)
-    buffer = f.read()
-    f.close()
-    return buffer
-
-def write_file(file_name, content): 
-    f = open(file_name, "x")
-    f.write(content)
-    f.close()
+from utils import read_file, write_file
+from source_nodes import SourceNode, SourceToken, SourceTreeCreator, SourceTreePrinter, SourceTypeResolver, get_source_unit
+from source_visitors import CompositeTreeVisitor, PartialTreeVisitor_ArraySubscriptExpr, PartialTreeVisitor_BinaryOperator_Assignment, PartialTreeVisitor_BinaryOperator, PartialTreeVisitor_BinaryOperator_Atomic, PartialTreeVisitor_BinaryOperator_MemberAssignment, PartialTreeVisitor_BreakStmt, PartialTreeVisitor_CaseStmt, PartialTreeVisitor_CallExpr, PartialTreeVisitor_ConditionalOperator, PartialTreeVisitor_CstyleCastExpr, PartialTreeVisitor_DeclRefExpr, PartialTreeVisitor_FunctionDecl, PartialTreeVisitor_FunctionDecl_Prototype, PartialTreeVisitor_GenericLiteral, PartialTreeVisitor_MemberRefExpr, PartialTreeVisitor_ReturnStmt, PartialTreeVisitor_UnaryOperator, PartialTreeVisitor_UnaryOperator_Assignment, PartialTreeVisitor_UnaryOperator_Atomic, PartialTreeVisitor_VarDecl, PartialTreeVisitor_VarDecl_Static, SourceTreeModifier, NodeTreeVisitor, PartialTreeVisitor_StructDecl, get_modification_tree
 
 def run_command(command): 
     try:
@@ -56,43 +46,15 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     AstPrinter(tu_filter).print(source_content, tu.cursor)
 
     print('\nGenerating source tree...')
-    SourceToken.reset()
-    SourceNode.reset()
+    source_root = get_source_tree(source_path)
 
-    source_root = SourceTreeCreator(tu_filter).create(source_content, tu.cursor)
-    SourceTreePrinter().print(source_root)
+    source_root = SourceTreePrinter().print(source_root)
     if f"{source_root}".strip() != f"{source_content}".strip():
         raise Exception(f"Failed to generate source tree. Generated tree: \n {source_root}")
 
     print('\nGenerating modification tree...')
-    partial_visitors = [
-        PartialTreeVisitor_StructDecl(),
-        PartialTreeVisitor_FunctionDecl_Prototype(),
-        PartialTreeVisitor_FunctionDecl(),
-        PartialTreeVisitor_CaseStmt(),
-        PartialTreeVisitor_BreakStmt(),
-        PartialTreeVisitor_ReturnStmt(),
-        PartialTreeVisitor_VarDecl_Static(),
-        PartialTreeVisitor_VarDecl(),
-        PartialTreeVisitor_CstyleCastExpr(),
-        PartialTreeVisitor_ArraySubscriptExpr(),
-        PartialTreeVisitor_CallExpr(),
-        PartialTreeVisitor_ConditionalOperator(),
-        PartialTreeVisitor_BinaryOperator_Atomic(),
-        PartialTreeVisitor_BinaryOperator_MemberAssignment(),
-        PartialTreeVisitor_BinaryOperator_Assignment(),
-        PartialTreeVisitor_BinaryOperator(),
-        PartialTreeVisitor_UnaryOperator_Atomic(),
-        PartialTreeVisitor_UnaryOperator_Assignment(),
-        PartialTreeVisitor_UnaryOperator(),
-        PartialTreeVisitor_MemberRefExpr(),
-        PartialTreeVisitor_DeclRefExpr(),
-        PartialTreeVisitor_GenericLiteral()
-    ]
-    composite_visitor = CompositeTreeVisitor(partial_visitors)
-    modification_root = composite_visitor.visit(source_root)
-    ModificationTreePrinter().print(modification_root)
-    
+    modification_root = get_modification_tree(source_root)
+
     print("\nGenerating code file...")
     modified_source_root = SourceTreeModifier([modification_root]).visit(source_root)
     c_target_declarations = "\n".join([

@@ -1,5 +1,7 @@
 import re
+import clang.cindex
 from assertions import assert_type, assert_list_type
+from utils import read_file
 
 def get_token_kind(token: 'SourceToken'):
     return token.token.kind.name.lower()
@@ -25,7 +27,6 @@ class SourceText:
         instance.end_index = end_index
         instance.value = value
         return instance
-
 
 class SourceToken(SourceText): 
     counter = 0
@@ -64,7 +65,6 @@ class SourceToken(SourceText):
     def reset():
         SourceToken.counter = 0
 
-
 class SourceNode(SourceText): 
     counter = 0
     
@@ -82,6 +82,9 @@ class SourceNode(SourceText):
 
     def __str__(self) -> str:
         return "".join([f"{v}" for v in self.values])
+
+    def get_underlying_nodes(self) -> list: 
+        return [self.node]
 
     def get_children(self) -> list['SourceNode']: 
         return [v for v in self.values if type(v) == SourceNode]
@@ -256,6 +259,29 @@ class SourceType:
     def create_float(name, byte_size):
         return SourceType.create("float", name, byte_size)
 
+class SourceUnit:
+    def __init__(self) -> None:
+        self.content = None
+        self.clang_root = None
+        self.source_root = None
+    
+    def get_content(self) -> str:
+        return self.content
+    
+    def set_content(self, value: str):
+        self.content = value
+
+    def get_clang_root(self): 
+        return self.clang_root
+    
+    def set_clang_root(self, value): 
+        self.clang_root = value
+
+    def get_source_root(self) -> SourceNode:
+        return self.source_root
+    
+    def set_source_root(self, value: SourceNode):
+        self.source_root = value
 
 class SourceNodeResolver: 
     """Utility methods for SourceNode information"""
@@ -328,9 +354,6 @@ class SourceTypeResolver:
         return any(t for t in SourceTypeResolver.get_builtin_types() if t.name == base_name_2)
 
 class SourceTreeCreator: 
-    def __init__(self, filter = None) -> None:
-        self.filter = filter
-    
     def create(self, code, root): 
         file_name = root.spelling
         tokens = root.get_tokens()
@@ -445,3 +468,20 @@ class SourceTreePrinter:
         print('  ' * level + f"{node} (#{node.id})".replace("\n", "\\n"))
         for child in node.get_children(): 
             self.print(child, level + 1)
+
+def get_source_unit(source_path: str): 
+    # Reset state 
+    SourceToken.reset()
+    SourceNode.reset()
+
+    # Generate tree (modifies state)
+    clang_root = clang.cindex.Index.create().parse(source_path).cursor
+    source_content = read_file(source_path)
+    source_root = SourceTreeCreator().create(source_content, clang_root)
+    
+    # Create unit
+    source_unit = SourceUnit()
+    source_unit.set_content(source_content)
+    source_unit.set_clang_root(clang_root)
+    source_unit.set_source_root(source_root)
+    return source_unit

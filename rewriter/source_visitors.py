@@ -3,7 +3,7 @@
 from typing import Callable
 from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
 from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, NestedExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
-from source_nodes import SourceNode, SourceNodeResolver, SourceTypeResolver
+from source_nodes import SourceNode, SourceNodeResolver, SourceType, SourceTypeResolver
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
 def flatten(l):
@@ -22,6 +22,31 @@ def is_statement(source_node: SourceNode):
     
     parent_children = source_node.parent.get_children()
     return parent_type in ["ForStmt", "IfStmt", "WhileStmt"] and parent_children[-1] == source_node
+
+
+class ModificationUnit: 
+    def __init__(self) -> None:
+        self.nodes = None
+        self.notifies = None
+        self.types = None 
+
+    def get_nodes(self) -> list: 
+        return self.nodes
+    
+    def set_nodes(self, value: list):
+        self.nodes = value
+
+    def get_notifies(self):
+        return self.notifies
+    
+    def set_notifies(self, value: list[BaseNotify]):
+        self.notifies = value
+    
+    def get_types(self):
+        return self.types 
+    
+    def set_types(self, value: list[SourceType]):
+        self.types = value
 
 # Basic visitors 
 class SourceTreeVisitor:
@@ -568,4 +593,31 @@ class PartialTreeVisitor_StructDecl(PartialTreeVisitor):
 
     def visit(self, source_node: SourceNode):
         return None
-    
+
+def get_modification_tree(source_root) -> ModificationUnit: 
+    partial_visitors = [
+        PartialTreeVisitor_StructDecl(),
+        PartialTreeVisitor_FunctionDecl_Prototype(),
+        PartialTreeVisitor_FunctionDecl(),
+        PartialTreeVisitor_CaseStmt(),
+        PartialTreeVisitor_BreakStmt(),
+        PartialTreeVisitor_ReturnStmt(),
+        PartialTreeVisitor_VarDecl_Static(),
+        PartialTreeVisitor_VarDecl(),
+        PartialTreeVisitor_CstyleCastExpr(),
+        PartialTreeVisitor_ArraySubscriptExpr(),
+        PartialTreeVisitor_CallExpr(),
+        PartialTreeVisitor_ConditionalOperator(),
+        PartialTreeVisitor_BinaryOperator_Atomic(),
+        PartialTreeVisitor_BinaryOperator_MemberAssignment(),
+        PartialTreeVisitor_BinaryOperator_Assignment(),
+        PartialTreeVisitor_BinaryOperator(),
+        PartialTreeVisitor_UnaryOperator_Atomic(),
+        PartialTreeVisitor_UnaryOperator_Assignment(),
+        PartialTreeVisitor_UnaryOperator(),
+        PartialTreeVisitor_MemberRefExpr(),
+        PartialTreeVisitor_DeclRefExpr(),
+        PartialTreeVisitor_GenericLiteral()
+    ]
+    composite_visitor = CompositeTreeVisitor(partial_visitors)
+    return composite_visitor.visit(source_root)

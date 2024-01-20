@@ -15,7 +15,7 @@ def get_token_equals(token1, token2):
     (start2, end2) = token2.extent
     isEqualExtent = start1.line == start2.line and start1.column == start2.column and end1.line == end2.line and end1.column == end2.line
     return token1.spelling == token2 and isEqualExtent
-  
+
 # Basic nodes
 class ModificationNode():
     def get_children(self) -> list['ModificationNode']:
