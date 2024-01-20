@@ -1,5 +1,5 @@
 from glob import glob
-from ast_visitors import AstPrinter
+from clang_nodes import ClangRootPrinter
 from pathlib import Path
 from typer import Typer, Argument
 from modification_nodes import ModificationTreePrinter
@@ -20,11 +20,10 @@ def show_files(
     print("show")
     for input_file in input_files:
         source_unit = get_source_unit(input_file)
+        clang_root = source_unit.get_clang_root()
         if clang_tree or show_all:
             print(f"Clang tree for {input_file}")
-            tu_file_name = source_unit.get_clang_root().spelling
-            tu_filter = lambda n: n.location.file.name == tu_file_name
-            AstPrinter(tu_filter).print(source_unit.get_content(), source_unit.get_clang_root())
+            ClangRootPrinter().print(clang_root)
 
         source_root = source_unit.get_source_root()
         if source_tree or show_all:

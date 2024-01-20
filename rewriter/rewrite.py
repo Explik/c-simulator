@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import clang.cindex
-from ast_visitors import AstPrinter
+from clang_nodes import ClangRootPrinter
 from pathlib import Path
 from modification_nodes import ModificationTreePrinter
 from utils import read_file, write_file
@@ -43,7 +43,7 @@ def generate_temp_files(source_path, prejs_path, c_target_path, js_target_path):
     print('\nGenerating AST...')
     tu = clang.cindex.Index.create().parse(source_path)
     tu_filter = lambda n: n.location.file.name == source_path
-    AstPrinter(tu_filter).print(source_content, tu.cursor)
+    ClangRootPrinter(tu_filter).print(source_content, tu.cursor)
 
     print('\nGenerating source tree...')
     source_root = get_source_tree(source_path)
