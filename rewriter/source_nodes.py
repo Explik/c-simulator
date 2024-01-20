@@ -1,7 +1,8 @@
 import re
 import clang.cindex
 from assertions import assert_type, assert_list_type
-from utils import read_file
+from clang_nodes import ClangNodeStringifier
+from utils import ellipse_string, read_file
 
 def get_token_kind(token: 'SourceToken'):
     return token.token.kind.name.lower()
@@ -459,13 +460,27 @@ class SourceTreeCreator:
             child.parent = node
             self.attach_node_parents(child)
 
+class SourceNodeStringifier(): 
+    def __init__(self, clang_stringifier = None, max_content_length: int|None = None) -> None:
+        self.clang_stringifier = clang_stringifier or ClangNodeStringifier()
+        self.max_content_length = max_content_length or 15
+
+    def stringify(self, node: SourceNode): 
+        node_type = type(node).__name__
+        node_content = ellipse_string(node.__str__().replace("\n", "\\n"),  self.max_content_length)
+        node_clang_nodes = "[" + ", ".join([self.clang_stringifier.stringify(n) for n in node.get_underlying_nodes()]) + "]"
+
+        return f'{node_type}({node.id}, \"{node_content}\", {node_clang_nodes})'
 
 class SourceTreePrinter:
-    def print(self, node: SourceNode, level = 0):
-        # Recursive print function to traverse the AST
-        assert_type(node, SourceNode)
+    def __init__(self, stringifier = None) -> None:
+        self.stringifier = stringifier or SourceNodeStringifier()
 
-        print('  ' * level + f"{node} (#{node.id})".replace("\n", "\\n"))
+    def print(self, node: SourceNode, level = 0):
+        """Recursive print function to traverse the AST"""
+        assert_type(node, SourceNode)
+        
+        print('  ' * level + self.stringifier.stringify(node))
         for child in node.get_children(): 
             self.print(child, level + 1)
 

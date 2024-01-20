@@ -10,7 +10,7 @@ def write_file(file_name, content):
     f.close()
 
 def ellipse_string(input: str, max_length: int): 
-    if input is None or len(input) <= max_length: 
+    if input is None or max_length is None or len(input) < max_length: 
         return input
     
-    return input[0..max_length - 3] + "..."
+    return input[0:max_length - 3] + "..."
