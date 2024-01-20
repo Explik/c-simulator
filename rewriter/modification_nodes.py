@@ -1,5 +1,6 @@
 import re
 from assertions import assert_type, assert_type_or_none, assert_list_type
+from utils import ellipse_string
 from source_nodes import SourceNode, SourceNodeResolver, SourceText, SourceToken
 
 # Based on https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -343,7 +344,7 @@ class InsertAfterTokenNode(ReplaceModificationNode):
         return [self.insertion]
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(targetNode = \"{self.targetNode}\", targetToken = \"{self.targetToken}\", insertion = \"{self.insertion}\")"
+        return f"{type(self).__name__}(targetNode = \"{ellipse_string(self.targetNode.__str__(), 15)}\", targetToken = \"{self.targetToken}\", insertion = \"{ellipse_string(self.insertion.__str__(), 15)}\")"
 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: InsertModificationNode) -> None:
