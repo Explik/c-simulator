@@ -1,7 +1,7 @@
 
 # Based on pycparser's NodeVisitor
 from typing import Callable
-from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
+from modification_nodes import CompoundReplaceNode, ConstantNode, CopyNode, CopyReplaceNode, InsertAfterTokenKindNode, InsertModificationNode, ModificationNode, ReplaceChildrenNode, ReplaceModificationNode, ReplaceNode, ReplaceTokenKindNode, SourceTreeVisitor, TemplatedNode, TemplatedReplaceNode, assert_list_type, assert_type, assignment_node, comma_node, comma_node_with_parentheses, comma_replace_node, comma_stmt_replace_node, compound_replace_node, copy_replace_node
 from notify_nodes import AssignNotifyData, BaseNotify, CompoundNotifyReplaceNode, CompoundVoidNotifyReplaceNode, CompoundExprNotifyReplaceNode, DeclNotifyData, EvalNotifyData, ExprNotifyReplaceNode, InvocationNotifyData, ParameterNotifyData, NestedExprNotifyReplaceNode, ReturnNotifyData, StatNotifyData, StmtNotifyReplaceNode, TypeNotifyData
 from source_nodes import SourceNode, SourceNodeResolver, SourceType, SourceTypeResolver
 
@@ -49,42 +49,7 @@ class ModificationUnit:
         self.types = value
 
 # Basic visitors 
-class SourceTreeVisitor:
-    def visit(self, source_node: SourceNode): 
-        node_type = SourceNodeResolver.get_type(source_node)
-        node_method_name = 'visit_' + node_type
-        node_method = getattr(self, node_method_name, self.generic_visit)
-        node_result = node_method(source_node)
-        return node_result
 
-    def generic_visit(self, source_node: SourceNode) -> ModificationNode|None: 
-        source_node_modifications = [self.visit(c) for c in source_node.get_children()]
-        source_node_modifications_filtered = [m for m in source_node_modifications if m is not None]
-
-        if len(source_node_modifications_filtered) == 0: 
-            return None
-        elif len(source_node_modifications_filtered) == 1: 
-            return source_node_modifications_filtered[0]
-        else: 
-            return CompoundReplaceNode(source_node, source_node_modifications_filtered)
-
-class SourceTreeModifier: 
-    def __init__(self, modification_nodes: ModificationNode) -> None:
-        self.modification_nodes = modification_nodes
-
-    def visit(self, source_node: SourceNode): 
-        # Depth first replacement
-        children = source_node.get_children()
-        new_children = [self.visit(c) for c in children]
-        new_source_node = SourceNode.replace_values(source_node, children, new_children)
-
-        modification_node = next((m for m in self.modification_nodes if m.is_applicable(source_node)), None)
-
-        # Apply modification if found
-        if modification_node is not None:
-            return modification_node.apply(new_source_node) 
-        else: 
-            return new_source_node
 
 class ReplaceAdditionSourceTreeVisitor(SourceTreeVisitor):
     def visit_BinaryOperator(self, source_node: SourceNode) -> ModificationNode:

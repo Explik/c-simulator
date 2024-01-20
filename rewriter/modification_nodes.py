@@ -434,11 +434,79 @@ def compound_replace_node(target, *args):
     )
 
 # Node-dependent classes 
+class SourceTreeVisitor:
+    def visit(self, source_node: SourceNode): 
+        node_type = SourceNodeResolver.get_type(source_node)
+        node_method_name = 'visit_' + node_type
+        node_method = getattr(self, node_method_name, self.generic_visit)
+        node_result = node_method(source_node)
+        return node_result
+
+    def generic_visit(self, source_node: SourceNode) -> ModificationNode|None: 
+        source_node_modifications = [self.visit(c) for c in source_node.get_children()]
+        source_node_modifications_filtered = [m for m in source_node_modifications if m is not None]
+
+        if len(source_node_modifications_filtered) == 0: 
+            return None
+        elif len(source_node_modifications_filtered) == 1: 
+            return source_node_modifications_filtered[0]
+        else: 
+            return CompoundReplaceNode(source_node, source_node_modifications_filtered)
+
+class SourceTreeModifier: 
+    def __init__(self, modification_nodes: ModificationNode) -> None:
+        self.modification_nodes = modification_nodes
+
+    def visit(self, source_node: SourceNode): 
+        # Depth first replacement
+        children = source_node.get_children()
+        new_children = [self.visit(c) for c in children]
+        new_source_node = SourceNode.replace_values(source_node, children, new_children)
+
+        modification_node = next((m for m in self.modification_nodes if m.is_applicable(source_node)), None)
+
+        # Apply modification if found
+        if modification_node is not None:
+            return modification_node.apply(new_source_node) 
+        else: 
+            return new_source_node
+
+class ModificationNodeStringifier: 
+    def serialize(self, node: ModificationNode):
+        return f"{node}".replace("\n", "\\n")
+
 class ModificationTreePrinter:
+    def __init__(self, serializer = None) -> None:
+        self.serializer = serializer or ModificationNodeStringifier()
+
     def print(self, node: ModificationNode, level = 0):
-        # Recursive print function to traverse the AST
+        """Recursive print function to traverse the modification tree"""
         assert_type(node, ModificationNode)
 
-        print('  ' * level + f"{node}".replace("\n", "\\n"))
+        print('  ' * level + self.serializer.serialize(node))
         for child in node.get_children(): 
             self.print(child, level + 1)
+
+class ModificationStepsPrinter: 
+    """Recursively prints application of modification node"""
+    def __init__(self) -> None:
+        self.counter:int = 0
+
+    def print(self, source_root: SourceNode, node: ModificationNode): 
+        self.counter = 0 
+        self._print(source_root, node)
+
+    def _print(self, source_root: SourceNode, node: ModificationNode): 
+        # Depth first traversel 
+        for child in node.get_children(): 
+            self._print(source_root, child)
+
+        print(f"Modification #{self.counter}")
+        if isinstance(node, InsertModificationNode): 
+            print(f"INSERTION: {node.apply()}\n")
+            self.counter += 1
+        if isinstance(node, ReplaceModificationNode):
+            new_source_root = SourceTreeModifier([node]).visit(source_root)
+            print(f"{new_source_root}\n")
+            self.counter += 1
+    
