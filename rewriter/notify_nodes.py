@@ -344,7 +344,7 @@ class NotifyBaseReplaceNode(ReplaceModificationNode):
         return instance
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(target = \"{ellipse_string(self.target.__str__(), 15)}\", start_notifies = [{len(self.start_notifies)} items], end_notifies = [{len(self.end_notifies)} items])"
+        return f"{type(self).__name__}({self.get_id()}, target = \"{ellipse_string(self.target.__str__(), 15)}\", start_notifies = [{len(self.start_notifies)} items], end_notifies = [{len(self.end_notifies)} items])"
 
 # Transforms id = 5 to id = (notify(), 5), temp = (notify(), id)
 class NestedExprNotifyReplaceNode(NotifyBaseReplaceNode):

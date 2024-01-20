@@ -19,19 +19,35 @@ def get_token_equals(token1, token2):
 
 # Basic nodes
 class ModificationNode():
+    counter = 0
+
+    def __init__(self) -> None:
+        ModificationNode.counter += 1
+        self.id = ModificationNode.counter
+    
+    def get_id(self): 
+        return self.id
+
     def get_children(self) -> list['ModificationNode']:
         return []
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}()"
+        return f"{type(self).__name__}({self.get_id()})"
 
 class InsertModificationNode(ModificationNode):
+    def __init__(self) -> None:
+        super().__init__()
+
     def apply(self) -> SourceNode:
         raise Exception("Not implemented")
     
 class ReplaceModificationNode(ModificationNode):
+    def __init__(self) -> None:
+        super().__init__()
+    
     def is_applicable(self, node: SourceNode) -> bool:
         return False
+    
     def apply(self, node: SourceNode) -> SourceNode:
         raise Exception("Not implemented")
 
@@ -47,7 +63,7 @@ class ConstantNode(InsertModificationNode):
         return SourceText.create(None, None, self.value)
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(value = \"{self.value}\")"
+        return f"{type(self).__name__}({self.get_id()}, value = \"{self.value}\")"
 
 class CopyNode(InsertModificationNode):
     def __init__(self, source: SourceNode) -> None:
@@ -60,7 +76,7 @@ class CopyNode(InsertModificationNode):
         return SourceNode.copy(self.source)
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(source = \"{self.source}\")"
+        return f"{type(self).__name__}({self.get_id()}, source = \"{self.source}\")"
 
 class CopyReplaceNode(InsertModificationNode):
     def __init__(self, source: SourceNode, replacements: list[ReplaceModificationNode]) -> None:
@@ -101,7 +117,7 @@ class CopyReplaceNode(InsertModificationNode):
         return CopyReplaceNode(self.source, children)
 
     def __str__(self) -> str:
-        return f"{type(self).__name__}(source = \"{self.source}\", replacements=[{len(self.replacements)} item(s)])"
+        return f"{type(self).__name__}({self.get_id()}, source = \"{self.source}\", replacements=[{len(self.replacements)} item(s)])"
 
 class TemplatedNode(InsertModificationNode):
     def __init__(self, template: str, insertions: list[InsertModificationNode]) -> None:
@@ -120,7 +136,7 @@ class TemplatedNode(InsertModificationNode):
         return self.insertions
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(template = {self.template}, insertions = [{len(self.template)} items])"
+        return f"{type(self).__name__}({self.get_id()}, template = {self.template}, insertions = [{len(self.template)} items])"
 
 # Replace nodes
 class ReplaceNode(ReplaceModificationNode):
@@ -143,7 +159,7 @@ class ReplaceNode(ReplaceModificationNode):
         return [self.replacement]
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(target = \"{self.target}\", insertion = \"{self.insertion}\")"
+        return f"{type(self).__name__}({self.get_id()}, target = \"{self.target}\", insertion = \"{self.insertion}\")"
 
 class ReplaceTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
@@ -172,7 +188,7 @@ class ReplaceTokenNode(ReplaceModificationNode):
         return [self.insertion]
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(targetNode = \"{self.targetNode}\", targetToken = \"{self.targetToken}\", insertion = \"{self.insertion}\")"
+        return f"{type(self).__name__}({self.get_id()}, targetNode = \"{self.targetNode}\", targetToken = \"{self.targetToken}\", insertion = \"{self.insertion}\")"
 
 class ReplaceTokenKindNode(ReplaceTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, replacement: ModificationNode) -> None:
@@ -213,7 +229,7 @@ class ReplaceChildrenNode(ReplaceModificationNode):
         return self.insertions
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(target = \"{self.target}\", insertions = [{len(self.insertions)} items])"
+        return f"{type(self).__name__}({self.get_id()}, target = \"{self.target}\", insertions = [{len(self.insertions)} items])"
 
 class CompoundReplaceNode(ReplaceModificationNode):
     def __init__(self, target: SourceNode|None, modifications: list[ReplaceModificationNode]) -> None:
@@ -286,7 +302,7 @@ class CompoundReplaceNode(ReplaceModificationNode):
         return False
 
     def __str__(self) -> str:
-        return f"{type(self).__name__}(target = \"{self.target}\", modifications = [{len(self.modifications)} items])"
+        return f"{type(self).__name__}({self.get_id()}, target = \"{self.target}\", modifications = [{len(self.modifications)} items])"
 
 class TemplatedReplaceNode(ReplaceModificationNode): 
     def __init__(self, target: SourceNode, template: str, insertions: list[InsertModificationNode]) -> None:
@@ -313,7 +329,7 @@ class TemplatedReplaceNode(ReplaceModificationNode):
         return self.insertions
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(target = \"{self.target}\", template = \"{self.template}\", insertions = [{len(self.insertions)} items])"
+        return f"{type(self).__name__}({self.get_id()}, target = \"{self.target}\", template = \"{self.template}\", insertions = [{len(self.insertions)} items])"
 
 class InsertAfterTokenNode(ReplaceModificationNode): 
     """Replaces identififer token that is part of target node"""
@@ -344,7 +360,7 @@ class InsertAfterTokenNode(ReplaceModificationNode):
         return [self.insertion]
     
     def __str__(self) -> str:
-        return f"{type(self).__name__}(targetNode = \"{ellipse_string(self.targetNode.__str__(), 15)}\", targetToken = \"{self.targetToken}\", insertion = \"{ellipse_string(self.insertion.__str__(), 15)}\")"
+        return f"{type(self).__name__}({self.get_id()}, targetNode = \"{ellipse_string(self.targetNode.__str__(), 15)}\", targetToken = \"{self.targetToken}\", insertion = \"{ellipse_string(self.insertion.__str__(), 15)}\")"
 
 class InsertAfterTokenKindNode(InsertAfterTokenNode):
     def __init__(self, targetNode: SourceNode, targetTokenKind: str, insertion: InsertModificationNode) -> None:
@@ -501,7 +517,7 @@ class ModificationStepsPrinter:
         for child in node.get_children(): 
             self._print(source_root, child)
 
-        print(f"Modification #{self.counter}")
+        print(f"Modification #{self.counter} (node id={node.get_id()})")
         if isinstance(node, InsertModificationNode): 
             print(f"INSERTION: {node.apply()}\n")
             self.counter += 1
